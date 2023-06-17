@@ -1,5 +1,9 @@
 _target_: src.models.tpp_module.TPPLitModule
 
+defaults:
+  - _self_
+  - criterion: tpp # [tpp, flood, iflood, adaflood]
+
 optimizer:
   _target_: torch.optim.Adam
   _partial_: True
@@ -17,3 +21,4 @@ net:
   activation:
     name: tanh
     in_features: ${model.net.hidden_dim}
+
