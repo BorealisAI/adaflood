@@ -26,6 +26,7 @@ class TPPLitModule(LightningModule):
     def __init__(
         self,
         net: torch.nn.Module,
+        criterion: torch.nn.Module,
         optimizer: torch.optim.Optimizer,
         scheduler: torch.optim.lr_scheduler=None,
     ):
@@ -35,6 +36,7 @@ class TPPLitModule(LightningModule):
         # also ensures init params will be stored in ckpt
         self.save_hyperparameters(logger=False, ignore=['net'])
         self.net = net
+        self.criterion = criterion
 
         # for averaging nll across batches
         self.train_nll = MeanMetricWithCount()
@@ -68,14 +70,17 @@ class TPPLitModule(LightningModule):
     def model_step(self, input_dict):
         output_dict = self.net(**input_dict)
 
-        # compute loss
-        event_ll, surv_ll, kl = (
-            output_dict[constants.EVENT_LL], output_dict[constants.SURV_LL], output_dict[constants.KL])
-        loss = -torch.sum(event_ll + surv_ll)
-        if kl is not None:
-            loss += kl
+        loss_dict = self.criterion(output_dict, input_dict)
+        output_dict.update(loss_dict)
+        #import IPython; IPython.embed()
+        ## compute loss
+        #event_ll, surv_ll, kl = (
+        #    output_dict[constants.EVENT_LL], output_dict[constants.SURV_LL], output_dict[constants.KL])
+        #loss = -torch.sum(event_ll + surv_ll)
+        #if kl is not None:
+        #    loss += kl
 
-        output_dict[constants.LOSS] = loss
+        #output_dict[constants.LOSS] = loss
         return output_dict
 
     def training_step(self, input_dict, batch_idx):

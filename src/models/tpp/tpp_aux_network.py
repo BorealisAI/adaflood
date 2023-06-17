@@ -18,109 +18,51 @@ from src.models.tpp.thp.models import (
     TransformerEncoder, TransformerAttnEncoder, NPVIEncoder, NPMLEncoder,
     TransformerRNN, TransformerDecoder)
 from src.models.tpp.thp import util as thp_util
+from src.models.tpp.tpp_network import IntensityFreePredictor, TransformerMix
 
 logger = logging.getLogger(__name__)
 
-class IntensityFreePredictor(LightningModule):
+class IntensityFreePredictorWithAux(IntensityFreePredictor):
     def __init__(self, name, hidden_dim, num_components, num_classes, flow=None,
-                 activation=None, weights_path=None, perm_invar=False, compute_acc=True):
+                 activation=None, weights_path=None, perm_invar=False, compute_acc=True,
+                 aux1_weights_path=None, aux2_weights_path=None):
         '''
         hidden_dim: the size of intermediate features
         num_components: the number of mixtures
         encoder: dictionary that specifices arguments for the encoder
         activation: dictionary that specifices arguments for the activation function
         '''
-        super().__init__()
-        self.name = name
-        self.num_classes = num_classes
-        self.compute_acc = compute_acc
+        super().__init__(
+            name=name, hidden_dim=hidden_dim, num_components=num_components,
+            num_classes=num_classes, flow=flow, activation=activation,
+            weights_path=weights_path, perm_invar=perm_invar, compute_acc=compute_acc)
 
-        self.perm_invar = perm_invar
-        self.hidden_dim = hidden_dim
-        self.embedding = nn.Embedding(self.num_classes+1, hidden_dim, padding_idx=constants.PAD)
+        self.alpha = nn.Parameter(torch.tensor(1.0))
+        self.beta = nn.Parameter(torch.tensor(0.0))
 
-        # if flow is specified, it correponds to neural flow else intensity-free
-        self.flow = flow
-        if self.flow == 'gru':
-            self.encoder = ContinuousGRULayer(
-                1 + hidden_dim, hidden_dim=hidden_dim,
-                model='flow', flow_model='resnet', flow_layers=1,
-                hidden_layers=2, time_net='TimeTanh', time_hidden_dime=8)
-        elif self.flow == 'lstm':
-            self.encoder = ContinuousLSTMLayer(
-                1 + hidden_dim, hidden_dim=hidden_dim+1,
-                model='flow', flow_model='resnet', flow_layers=1,
-                hidden_layers=2, time_net='TimeTanh', time_hidden_dime=8)
-        else:
-            self.encoder = nn.GRU(
-                1 + hidden_dim, hidden_dim, batch_first=True)
-        self.activation = util.build_activation(activation)
+        self.aux_model1 = IntensityFreePredictor(
+            name=name, hidden_dim=hidden_dim, num_components=num_components,
+            num_classes=num_classes, flow=flow, activation=activation,
+            weights_path=aux1_weights_path, perm_invar=perm_invar, compute_acc=compute_acc)
 
-        if self.perm_invar:
-            decoder_hidden_dim = self.hidden_dim * 2
-        else:
-            decoder_hidden_dim = self.hidden_dim
+        self.aux_model2 = IntensityFreePredictor(
+            name=name, hidden_dim=hidden_dim, num_components=num_components,
+            num_classes=num_classes, flow=flow, activation=activation,
+            weights_path=aux2_weights_path, perm_invar=perm_invar, compute_acc=compute_acc)
 
-        self.prob_dist = LogNormalMixture(
-            decoder_hidden_dim, num_components, activation=self.activation)
-
-        if self.num_classes > 1:
-            self.mark_linear = nn.Linear(decoder_hidden_dim, self.num_classes)
 
     def forward(self, times, marks, masks, missing_masks=[]):
-        if isinstance(missing_masks, torch.Tensor):
-            masks = torch.logical_and(masks.bool(), missing_masks.bool()).float()
+        # TODO: Don't we need two aux models? if so, which data goes to which aux models? Keep track
+        # of which data each model was trained on?
+        with torch.inference_mode():
+            aux_output_dict = self.aux_model1.forward(times, marks, masks, missing_masks)
+            aux_output_dict = {
+                'aux_' + key: val for key, val in aux_model_out.items()}
+            aux_output_dict.update(
+                {constants.ALPHA = self.alpha, constants.BETA = self.beta})
 
-        # obtain the features from the encoder
-        if self.flow != 'gru' and self.flow != 'lstm':
-            hidden = torch.zeros(
-                1, 1, self.hidden_dim).repeat(1, times.shape[0], 1).to(times) # (1, B, D)
-            marks_emb = self.embedding(marks.squeeze(-1)) # (B, Seq, D)
-            inputs = torch.cat([times, marks_emb], -1) # (B, Seq, D+1)
-
-            histories, _ = self.encoder(inputs, hidden) # (B, Seq, D)
-        else:
-            marks_emb = self.embedding(marks.squeeze(-1))
-            histories = self.encoder(torch.cat([times, marks_emb], -1), times)
-
-        histories = histories[:,:-1] # (B, Seq-1, D)
-
-        prob_output_dict = self.prob_dist(
-            histories, times[:,1:], masks[:,1:]) # (B, Seq-1, 1): ignore the first event since that's only input not output
-        event_ll = prob_output_dict['event_ll']
-        surv_ll = prob_output_dict['surv_ll']
-        time_predictions = prob_output_dict['preds']
-
-        # compute log-likelihood and class predictions if marks are available
-        class_log_probs = None
-        class_logits = None
-        class_predictions = None
-        if self.num_classes > 1 and self.compute_acc:
-            batch_size = times.shape[0]
-            last_event_idx = masks.squeeze(-1).sum(-1, keepdim=True).long().squeeze(-1) - 1 # (batch_size,)
-            masks_without_last = masks.clone()
-            masks_without_last[torch.arange(batch_size), last_event_idx] = 0
-
-            class_logits = torch.log_softmax(self.mark_linear(histories), dim=-1)  # (B, Seq-1, num_marks)
-            mark_dist = Categorical(logits=class_logits)
-            adjusted_marks = torch.where(marks-1 >= 0, marks-1, torch.zeros_like(marks)).squeeze(-1) # original dataset uses 1-index
-            class_log_probs = mark_dist.log_prob(adjusted_marks[:,1:])  # (B, Seq-1)
-            class_log_probs = torch.stack(
-                [torch.sum(mark_log_prob[mask.bool()]) for
-                 mark_log_prob, mask in zip(class_log_probs, masks_without_last.squeeze(-1)[:,:-1])])
-            class_predictions = torch.argmax(class_logits, dim=-1)
-
-        output_dict = {
-            constants.HISTORIES: histories,
-            constants.EVENT_LL: event_ll,
-            constants.SURV_LL: surv_ll,
-            constants.KL: None,
-            constants.TIME_PREDS: time_predictions,
-            constants.CLS_LL: class_log_probs,
-            constants.CLS_LOGITS: class_logits,
-            constants.CLS_PREDS: class_predictions,
-            constants.ATTENTIONS: None,
-        }
+        output_dict = super().forward(times, marks, masks, missing_masks)
+        output_dict.update(aux_output_dict)
         return output_dict
 
 
