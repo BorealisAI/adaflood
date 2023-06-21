@@ -51,17 +51,17 @@ class IntensityFreePredictorWithAux(IntensityFreePredictor):
             weights_path=aux2_weights_path, perm_invar=perm_invar, compute_acc=compute_acc)
 
 
-    def forward(self, times, marks, masks, missing_masks=[]):
+    def forward(self, times, marks, masks, missing_masks=[], is_first_half=[]):
         # TODO: Don't we need two aux models? if so, which data goes to which aux models? Keep track
         # of which data each model was trained on?
         with torch.inference_mode():
-            aux_output_dict = self.aux_model1.forward(times, marks, masks, missing_masks)
+            aux_output_dict = self.aux_model1.forward(times, marks, masks, missing_masks, is_first_half)
             aux_output_dict = {
                 'aux_' + key: val for key, val in aux_model_out.items()}
             aux_output_dict.update(
                 {constants.ALPHA = self.alpha, constants.BETA = self.beta})
 
-        output_dict = super().forward(times, marks, masks, missing_masks)
+        output_dict = super().forward(times, marks, masks, missing_masks, is_first_half)
         output_dict.update(aux_output_dict)
         return output_dict
 

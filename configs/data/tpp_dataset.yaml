@@ -17,3 +17,7 @@ missing_rate: 0.0
 use_mark: True
 run_bootstrap: False
 
+# AdaFlood
+train_first_half: False # train aux1 on first half
+train_second_half: False # train aux2 on second half
+

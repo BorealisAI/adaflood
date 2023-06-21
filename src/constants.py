@@ -11,6 +11,7 @@ MARKS = "marks"
 MASKS = "masks"
 LOG_MEAN = 'log_mean'
 LOG_STD = 'log_std'
+IS_FIRST_HALF = 'is_first_half' # for adaflood
 
 # Outputs
 HISTORIES = "histories"

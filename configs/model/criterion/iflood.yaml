@@ -1,5 +1,5 @@
 _target_: src.models.components.criterion.IFloodTPPLoss
 
 num_classes: ${data.datasets.num_classes}
-flood_level: 0.1
+flood_level: 0.0
 

@@ -67,7 +67,7 @@ class IntensityFreePredictor(LightningModule):
         if self.num_classes > 1:
             self.mark_linear = nn.Linear(decoder_hidden_dim, self.num_classes)
 
-    def forward(self, times, marks, masks, missing_masks=[]):
+    def forward(self, times, marks, masks, missing_masks=[], is_first_half=[]):
         if isinstance(missing_masks, torch.Tensor):
             masks = torch.logical_and(masks.bool(), missing_masks.bool()).float()
 
@@ -228,7 +228,7 @@ class TransformerMix(LightningModule):
         print(f'The number of trainable model parameters: {trainable_params}', flush=True)
 
 
-    def forward(self, times, marks, masks, missing_masks=[]):
+    def forward(self, times, marks, masks, missing_masks=[], is_first_half=[]):
         """
         Return the hidden representations and predictions.
         For a sequence (l_1, l_2, ..., l_{N-1}), we predict (l_2, ..., l_N).

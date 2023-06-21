@@ -61,7 +61,7 @@ class IFloodTPPLoss(TPPLoss):
     ) -> Dict[str, torch.Tensor]:
         losses = self.common_step(output_dict, input_dict)
         flood_level = losses.shape[0] * self.flood_level
-        adjusted_loss = (losses - flood_level).abs() + flood_level
+        adjusted_loss = torch.sum((losses - flood_level).abs() + flood_level)
 
         return {constants.LOSS: adjusted_loss}
 
