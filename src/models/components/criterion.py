@@ -66,11 +66,11 @@ class IFloodTPPLoss(TPPLoss):
         return {constants.LOSS: adjusted_loss}
 
 
-class AFloodTPPLoss(TPPLoss):
-    def __init__(self, num_classes: int, alpha: float, gamma: float):
+class AdaFloodTPPLoss(TPPLoss):
+    def __init__(self, num_classes: int, alpha: float, beta: float):
         super().__init__(num_classes)
         self.alpha = alpha
-        self.gamma = gamma
+        self.beta = beta
         #self.weight_decay = weight_decay
         #self.exclude_layer_keywords = exclude_layer_keywords
         #self.kl_weight = kl_weight
@@ -82,68 +82,95 @@ class AFloodTPPLoss(TPPLoss):
         #    kl_weight=kl_weight,
         #)
 
+    def aux_step(
+        self, output_dict: Union[Dict, torch.Tensor], input_dict: Dict, aux_type: str
+    ) -> Dict[str, torch.Tensor]:
+        # compute nll
+        event_ll, surv_ll, kl, cls_ll= (
+            output_dict[aux_type + '_' + constants.EVENT_LL],
+            output_dict[aux_type + '_' + constants.SURV_LL],
+            output_dict[aux_type + '_' + constants.KL],
+            output_dict[aux_type + '_' + constants.CLS_LL])
+        losses = -(event_ll + surv_ll)
+
+        if cls_ll is not None:
+            losses += -cls_ll # NOTE: negative ll
+
+        if kl is not None:
+            losses += kl
+
+        return losses
+
+
     def forward(
         self, output_dict: Union[Dict, torch.Tensor], input_dict: Dict
     ) -> Dict[str, torch.Tensor]:
 
-        model_output_names = [
-            constants.HISTORIES,
-            constants.EVENT_LL,
-            constants.SURV_LL,
-            constants.KL,
-            constants.TIME_PREDS,
-            constants.CLS_PREDS,
-            constants.ATTENTIONS,
-            constants.ENGINE,
-        ]
+        losses = self.common_step(output_dict, input_dict)
 
-        # Get main and aux model outputs
-        model_outputs = {key: output_dict[key] for key in model_output_names}
-        aux_model_outputs = {
-            key: output_dict[f"aux_{key}"] for key in model_output_names
-        }
+        aux1_losses = self.aux_step(output_dict, input_dict, 'aux1')
+        aux2_losses = self.aux_step(output_dict, input_dict, 'aux2')
 
-        alpha = output_dict[constants.ALPHA]
-        beta = output_dict[constants.BETA]
+        # compute loss based on first_half bool
+        import IPython; IPython.embed()
+        #model_output_names = [
+        #    constants.HISTORIES,
+        #    constants.EVENT_LL,
+        #    constants.SURV_LL,
+        #    constants.KL,
+        #    constants.TIME_PREDS,
+        #    constants.CLS_PREDS,
+        #    constants.ATTENTIONS,
+        #    constants.ENGINE,
+        #]
 
-        times, masks = input_dict[constants.TIMES], input_dict[constants.MASKS]
+        ## Get main and aux model outputs
+        #model_outputs = {key: output_dict[key] for key in model_output_names}
+        #aux_model_outputs = {
+        #    key: output_dict[f"aux_{key}"] for key in model_output_names
+        #}
 
-        event_ll, surv_ll, kl = (
-            model_outputs[constants.EVENT_LL],
-            model_outputs[constants.SURV_LL],
-            model_outputs[constants.KL],
-        )
-        aux_event_ll, aux_surv_ll, aux_kl = (
-            aux_model_outputs[constants.EVENT_LL],
-            aux_model_outputs[constants.SURV_LL],
-            aux_model_outputs[constants.KL],
-        )
+        #alpha = output_dict[constants.ALPHA]
+        #beta = output_dict[constants.BETA]
 
-        # AFlood
-        base_loss = event_ll + surv_ll
-        aux_loss = alpha * (aux_event_ll + aux_surv_ll) + beta
-        flooded_loss = torch.abs(base_loss - aux_loss) + aux_loss
+        #times, masks = input_dict[constants.TIMES], input_dict[constants.MASKS]
 
-        loss = -torch.sum(flooded_loss)
+        #event_ll, surv_ll, kl = (
+        #    model_outputs[constants.EVENT_LL],
+        #    model_outputs[constants.SURV_LL],
+        #    model_outputs[constants.KL],
+        #)
+        #aux_event_ll, aux_surv_ll, aux_kl = (
+        #    aux_model_outputs[constants.EVENT_LL],
+        #    aux_model_outputs[constants.SURV_LL],
+        #    aux_model_outputs[constants.KL],
+        #)
 
-        if kl is not None:
-            loss += self.kl_weight * kl
+        ## AFlood
+        #base_loss = event_ll + surv_ll
+        #aux_loss = alpha * (aux_event_ll + aux_surv_ll) + beta
+        #flooded_loss = torch.abs(base_loss - aux_loss) + aux_loss
 
-        if self.weight_decay != 0.0:
-            weight_squared = 0.0
-            engine = output_dict["ENGINE"]
-            for name, params in engine.named_parameters():
-                for exclude_layer_keyword in self.exclude_layer_keywords:
-                    if exclude_layer_keyword in name:
-                        break
-                else:
-                    weight_squared += torch.sum(params**2)
-            weight_squared *= 0.5
-            loss += self.weight_decay * weight_squared
+        #loss = -torch.sum(flooded_loss)
 
-        loss_dict = {
-            constants.LOSS: loss,
-            "base_" + constants.LOSS: -torch.sum(base_loss),
-            "aux_" + constants.LOSS: -torch.sum(aux_loss),
-        }
+        #if kl is not None:
+        #    loss += self.kl_weight * kl
+
+        #if self.weight_decay != 0.0:
+        #    weight_squared = 0.0
+        #    engine = output_dict["ENGINE"]
+        #    for name, params in engine.named_parameters():
+        #        for exclude_layer_keyword in self.exclude_layer_keywords:
+        #            if exclude_layer_keyword in name:
+        #                break
+        #        else:
+        #            weight_squared += torch.sum(params**2)
+        #    weight_squared *= 0.5
+        #    loss += self.weight_decay * weight_squared
+
+        #loss_dict = {
+        #    constants.LOSS: loss,
+        #    "base_" + constants.LOSS: -torch.sum(base_loss),
+        #    "aux_" + constants.LOSS: -torch.sum(aux_loss),
+        #}
         return loss_dict

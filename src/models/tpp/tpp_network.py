@@ -67,6 +67,14 @@ class IntensityFreePredictor(LightningModule):
         if self.num_classes > 1:
             self.mark_linear = nn.Linear(decoder_hidden_dim, self.num_classes)
 
+        if weights_path is not None:
+            checkpoint = torch.load(weights_path)['state_dict']
+            try:
+                self.load_state_dict(checkpoint)
+            except:
+                checkpoint = {key.replace("net.", "", 1): value for key, value in checkpoint.items() if key.startswith("net.")}
+                self.load_state_dict(checkpoint)
+
     def forward(self, times, marks, masks, missing_masks=[], is_first_half=[]):
         if isinstance(missing_masks, torch.Tensor):
             masks = torch.logical_and(masks.bool(), missing_masks.bool()).float()

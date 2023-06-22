@@ -1,3 +1,5 @@
+import os
+import glob
 import warnings
 from importlib.util import find_spec
 from typing import Callable
@@ -110,3 +112,22 @@ def get_metric_value(metric_dict: dict, metric_name: str) -> float:
     log.info(f"Retrieved metric value! <{metric_name}={metric_value}>")
 
     return metric_value
+
+def load_checkpoint_path(checkpoint_dir):
+    # list files ends with .pth
+    # if there is only one that starts with epoch, load it if not load the last
+    # if no checkpoints start with epoch, load last.ckpt
+    checkpoint_list = glob.glob(f'{checkpoint_dir}/*.ckpt')
+    assert checkpoint_list
+
+    latest_epoch = 0
+    selected_checkpoint_path = os.path.join(checkpoint_dir, 'last.ckpt')
+    for checkpoint_path in checkpoint_list:
+        if checkpoint_path.startswith('epoch'):
+            curr_epoch = int(checkpoint_path.split('_')[-1][:3])
+            if curr_epoch > latest_epoch:
+                latest_epoch = curr_epoch
+                selected_checkpoint_path = checkpoint_path
+
+    return selected_checkpoint_path
+

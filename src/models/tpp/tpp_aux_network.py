@@ -19,13 +19,14 @@ from src.models.tpp.thp.models import (
     TransformerRNN, TransformerDecoder)
 from src.models.tpp.thp import util as thp_util
 from src.models.tpp.tpp_network import IntensityFreePredictor, TransformerMix
+from src.utils.utils import load_checkpoint_path
 
 logger = logging.getLogger(__name__)
 
 class IntensityFreePredictorWithAux(IntensityFreePredictor):
     def __init__(self, name, hidden_dim, num_components, num_classes, flow=None,
                  activation=None, weights_path=None, perm_invar=False, compute_acc=True,
-                 aux1_weights_path=None, aux2_weights_path=None):
+                 aux1_weights_dir=None, aux2_weights_dir=None):
         '''
         hidden_dim: the size of intermediate features
         num_components: the number of mixtures
@@ -39,6 +40,9 @@ class IntensityFreePredictorWithAux(IntensityFreePredictor):
 
         self.alpha = nn.Parameter(torch.tensor(1.0))
         self.beta = nn.Parameter(torch.tensor(0.0))
+
+        aux1_weights_path = load_checkpoint_path(aux1_weights_dir)
+        aux2_weights_path = load_checkpoint_path(aux2_weights_dir)
 
         self.aux_model1 = IntensityFreePredictor(
             name=name, hidden_dim=hidden_dim, num_components=num_components,
@@ -55,14 +59,19 @@ class IntensityFreePredictorWithAux(IntensityFreePredictor):
         # TODO: Don't we need two aux models? if so, which data goes to which aux models? Keep track
         # of which data each model was trained on?
         with torch.inference_mode():
-            aux_output_dict = self.aux_model1.forward(times, marks, masks, missing_masks, is_first_half)
-            aux_output_dict = {
-                'aux_' + key: val for key, val in aux_model_out.items()}
-            aux_output_dict.update(
-                {constants.ALPHA = self.alpha, constants.BETA = self.beta})
+            aux1_output_dict = self.aux_model1.forward(times, marks, masks, missing_masks, is_first_half)
+            aux2_output_dict = self.aux_model2.forward(times, marks, masks, missing_masks, is_first_half)
+            aux1_output_dict = {
+                'aux1_' + key: val for key, val in aux1_output_dict.items()}
+            aux2_output_dict = {
+                'aux2_' + key: val for key, val in aux2_output_dict.items()}
+
+            aux1_output_dict.update(aux2_output_dict)
+            aux1_output_dict.update(
+                {constants.ALPHA: self.alpha, constants.BETA: self.beta})
 
         output_dict = super().forward(times, marks, masks, missing_masks, is_first_half)
-        output_dict.update(aux_output_dict)
+        output_dict.update(aux1_output_dict)
         return output_dict
 
 

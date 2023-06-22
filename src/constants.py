@@ -31,17 +31,29 @@ ALPHA = 'alpha'
 BETA = 'beta'
 
 # Outputs of aux models
-AUX_HISTORIES = "aux_histories"
-AUX_OUTPUT_TYPE = "aux_output_type"
-AUX_EVENT_LL = "aux_event_ll"
-AUX_SURV_LL = "aux_surv_ll"
-AUX_KL = "aux_kl_divergence"
-AUX_TIME_PREDS = "aux_time_preds"
-AUX_CLS_LL = "aux_class_ll"
-AUX_CLS_LOGITS = "aux_class_logits"
-AUX_CLS_PREDS = "aux_class_preds"
-AUX_ATTENTIONS = "aux_attentions"
-AUX_ENGINE = "aux_ENGINE"
+AUX1_HISTORIES = "aux1_histories"
+AUX1_OUTPUT_TYPE = "aux1_output_type"
+AUX1_EVENT_LL = "aux1_event_ll"
+AUX1_SURV_LL = "aux1_surv_ll"
+AUX1_KL = "aux1_kl_divergence"
+AUX1_TIME_PREDS = "aux1_time_preds"
+AUX1_CLS_LL = "aux1_class_ll"
+AUX1_CLS_LOGITS = "aux1_class_logits"
+AUX1_CLS_PREDS = "aux1_class_preds"
+AUX1_ATTENTIONS = "aux1_attentions"
+AUX1_ENGINE = "aux1_ENGINE"
+
+AUX2_HISTORIES = "aux2_histories"
+AUX2_OUTPUT_TYPE = "aux2_output_type"
+AUX2_EVENT_LL = "aux2_event_ll"
+AUX2_SURV_LL = "aux2_surv_ll"
+AUX2_KL = "aux2_kl_divergence"
+AUX2_TIME_PREDS = "aux2_time_preds"
+AUX2_CLS_LL = "aux2_class_ll"
+AUX2_CLS_LOGITS = "aux2_class_logits"
+AUX2_CLS_PREDS = "aux2_class_preds"
+AUX2_ATTENTIONS = "aux2_attentions"
+AUX2_ENGINE = "aux2_ENGINE"
 
 
 # Evaluatation

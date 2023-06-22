@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 def build_activation(activation_config):
-    name = activation_config.pop('name', 'Tanh')
+    name = activation_config.get('name', 'tanh')
 
     if name == 'tanh':
         activation = nn.Tanh()
@@ -19,7 +19,7 @@ def build_activation(activation_config):
     elif name == 'snake':
         activation = activations.Snake(**activation_config)
     else:
-        logger.Error(f'Activation name {name} is not valid'); exit()
+        raise NotImplementedError(f'Activation name {name} is not valid')
 
     return activation
 
