@@ -1,0 +1,6 @@
+_target_: src.models.components.criterion.AdaFloodTPPLoss
+
+num_classes: ${data.datasets.num_classes}
+alpha: 1.0
+beta: 0.0
+

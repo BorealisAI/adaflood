@@ -1,0 +1,27 @@
+_target_: src.models.tpp_module.TPPLitModule
+
+defaults:
+  - _self_
+  - criterion: adaflood # [tpp, flood, iflood, adaflood]
+
+optimizer:
+  _target_: torch.optim.Adam
+  _partial_: True
+  lr: 0.0001
+  weight_decay: 0.0001
+  eps: 1e-05
+  betas: [0.9, 0.999]
+
+net:
+  _target_: src.models.tpp.tpp_aux_network.IntensityFreePredictorWithAux
+  name: 'if'
+  hidden_dim: 96
+  num_components: 8
+  num_classes: ${data.datasets.num_classes}
+  activation:
+    name: tanh
+    in_features: ${model.net.hidden_dim}
+  aux1_weights_dir: ${paths.log_dir}/${data.datasets.dataset}_${model.net.name}_aux1/seed${seed}/lr${model.optimizer.lr}_wd${model.optimizer.weight_decay}/checkpoints
+  aux2_weights_dir: ${paths.log_dir}/${data.datasets.dataset}_${model.net.name}_aux2/seed${seed}/lr${model.optimizer.lr}_wd${model.optimizer.weight_decay}/checkpoints
+
+
