@@ -7,7 +7,7 @@ defaults:
 
 model_checkpoint:
   dirpath: ${paths.output_dir}/checkpoints
-  filename: "epoch_{epoch:03d}"
+  filename: "epoch_{epoch:04d}"
   monitor: "val/rmse"
   mode: "min"
   save_last: True

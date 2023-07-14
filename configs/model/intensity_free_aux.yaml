@@ -21,7 +21,11 @@ net:
   activation:
     name: tanh
     in_features: ${model.net.hidden_dim}
-  aux1_weights_dir: ${paths.log_dir}/${data.datasets.dataset}_${model.net.name}_aux1/seed${seed}/lr${model.optimizer.lr}_wd${model.optimizer.weight_decay}/checkpoints
-  aux2_weights_dir: ${paths.log_dir}/${data.datasets.dataset}_${model.net.name}_aux2/seed${seed}/lr${model.optimizer.lr}_wd${model.optimizer.weight_decay}/checkpoints
+
+  aux_lr: 0.001
+  aux_weight_deacy: 0.0001
+  aux_d_model: 64
+  aux1_weights_dir: ${paths.log_dir}/${data.datasets.dataset}_${model.net.name}_tpp_aux1/seed1/lr${model.aux_lr}_wd${model.aux_weight_decay}_mdim${model.net.d_model}/checkpoints
+  aux2_weights_dir: ${paths.log_dir}/${data.datasets.dataset}_${model.net.name}_tpp_aux2/seed1/lr${model.aux_lr}_wd${model.aux_weight_decay}_mdim${model.net.d_model}/checkpoints
 
 

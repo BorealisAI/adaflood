@@ -123,11 +123,12 @@ def load_checkpoint_path(checkpoint_dir):
     latest_epoch = 0
     selected_checkpoint_path = os.path.join(checkpoint_dir, 'last.ckpt')
     for checkpoint_path in checkpoint_list:
-        if checkpoint_path.startswith('epoch'):
+        if checkpoint_path.split('/')[-1].startswith('epoch'):
             curr_epoch = int(checkpoint_path.split('_')[-1][:3])
             if curr_epoch > latest_epoch:
                 latest_epoch = curr_epoch
                 selected_checkpoint_path = checkpoint_path
 
+    log.info(f"Loading a checkopint from {selected_checkpoint_path}")
     return selected_checkpoint_path
 

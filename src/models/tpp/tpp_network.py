@@ -140,7 +140,7 @@ class TransformerMix(LightningModule):
                  n_layers=2, cattn_n_layers=1, n_head=4, d_k=64, d_v=64, dropout=0.1,
                  attn_l=0, base_l=20, perm_invar=False, use_avg=True, share_weights=True,
                  attn_only=False, concat=False, num_latent=0, vi_method=None,
-                 num_z_samples=100, compute_acc=True):
+                 num_z_samples=100, compute_acc=True, weights_path=None):
         super().__init__()
         self.name = name
         self.num_classes = num_classes
@@ -234,6 +234,15 @@ class TransformerMix(LightningModule):
         trainable_params = sum(
                 p.numel() for p in self.parameters() if p.requires_grad)
         print(f'The number of trainable model parameters: {trainable_params}', flush=True)
+
+        if weights_path is not None:
+            checkpoint = torch.load(weights_path)['state_dict']
+            try:
+                self.load_state_dict(checkpoint)
+            except:
+                checkpoint = {key.replace("net.", "", 1): value for key, value in checkpoint.items() if key.startswith("net.")}
+                self.load_state_dict(checkpoint)
+
 
 
     def forward(self, times, marks, masks, missing_masks=[], is_first_half=[]):

@@ -55,7 +55,12 @@ class TPPLitModule(LightningModule):
 
         # for tracking best so far validation nll and rmse
         self.val_nll_best = MinMetric()
+        self.val_rmse_with_nll_best = MinMetric()
+        self.val_acc_with_nll_best = MinMetric()
+
         self.val_rmse_best = MinMetric()
+        self.val_nll_with_rmse_best = MinMetric()
+        self.val_acc_with_rmse_best = MinMetric()
 
         self.no_decay_layer_keywords = ['cross_attn_stack']
 
@@ -64,7 +69,14 @@ class TPPLitModule(LightningModule):
         # so it's worth to make sure validation metrics don't store results from these checks
         self.val_nll.reset()
         self.val_nll_best.reset()
+        self.val_rmse_with_nll_best.reset()
+        self.val_acc_with_nll_best.reset()
+
         self.val_rmse.reset()
+        self.val_rmse_best.reset()
+        self.val_nll_with_rmse_best.reset()
+        self.val_acc_with_rmse_best.reset()
+
         self.val_acc.reset()
 
     def model_step(self, input_dict):
@@ -72,15 +84,6 @@ class TPPLitModule(LightningModule):
 
         loss_dict = self.criterion(output_dict, input_dict)
         output_dict.update(loss_dict)
-        #import IPython; IPython.embed()
-        ## compute loss
-        #event_ll, surv_ll, kl = (
-        #    output_dict[constants.EVENT_LL], output_dict[constants.SURV_LL], output_dict[constants.KL])
-        #loss = -torch.sum(event_ll + surv_ll)
-        #if kl is not None:
-        #    loss += kl
-
-        #output_dict[constants.LOSS] = loss
         return output_dict
 
     def training_step(self, input_dict, batch_idx):
@@ -126,12 +129,35 @@ class TPPLitModule(LightningModule):
 
     def on_validation_epoch_end(self):
         val_nll = self.val_nll.compute()
-        self.val_nll_best(val_nll)
+        prev_val_nll_best = self.val_nll_best.compute()
+        val_nll_best = self.val_nll_best(val_nll)
         self.log("val/nll_best", self.val_nll_best.compute(), sync_dist=True, prog_bar=True)
 
         val_rmse = self.val_rmse.compute()
-        self.val_rmse_best(val_rmse)
+        prev_val_rmse_best = self.val_rmse_best.compute()
+        val_rmse_best = self.val_rmse_best(val_rmse)
         self.log("val/rmse_best", self.val_rmse_best.compute(), sync_dist=True, prog_bar=True)
+
+        val_acc = self.val_acc.compute()
+
+        #if val_nll < prev_val_nll_best:
+        if val_nll == val_nll_best:
+            self.val_rmse_with_nll_best.reset()
+            self.val_rmse_with_nll_best(val_rmse)
+            self.log("val/rmse_with_nll_best", self.val_rmse_with_nll_best.compute(), sync_dist=True, prog_bar=True)
+            self.val_acc_with_nll_best.reset()
+            self.val_acc_with_nll_best(val_acc)
+            self.log("val/acc_with_nll_best", self.val_acc_with_nll_best.compute(), sync_dist=True, prog_bar=True)
+
+        #if val_rmse < prev_val_rmse_best:
+        if val_rmse == val_rmse_best:
+            self.val_nll_with_rmse_best.reset()
+            self.val_nll_with_rmse_best(val_nll)
+            self.log("val/nll_with_rmse_best", self.val_nll_with_rmse_best.compute(), sync_dist=True, prog_bar=True)
+            self.val_acc_with_rmse_best.reset()
+            self.val_acc_with_rmse_best(val_acc)
+            self.log("val/acc_with_rmse_best", self.val_acc_with_rmse_best.compute(), sync_dist=True, prog_bar=True)
+
 
 
     def test_step(self, input_dict, batch_idx):
@@ -142,7 +168,7 @@ class TPPLitModule(LightningModule):
         masks = input_dict[constants.MASKS].bool()
         count = masks.sum()
         self.test_nll(nll, count)
-        self.log("test/nll", self.test_nll, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("test/nll_best", self.test_nll, on_step=False, on_epoch=True, prog_bar=True)
 
         # update rmse
         times = input_dict[constants.TIMES]
@@ -151,15 +177,15 @@ class TPPLitModule(LightningModule):
         start_idx = times.shape[1] - time_preds.shape[1]
         self.test_rmse(time_preds.squeeze(-1), times[:,start_idx:].squeeze(-1),
                        masks[:,start_idx:].squeeze(-1))
-        self.log("test/rmse", self.test_rmse, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("test/rmse_best", self.test_rmse, on_step=False, on_epoch=True, prog_bar=True)
 
         # update accuracy
         class_preds = output_dict[constants.CLS_PREDS]
         if class_preds is not None:
             marks = input_dict[constants.MARKS]
             self.test_acc(class_preds, marks[:,start_idx:].squeeze(-1),
-                         masks[:,start_idx:].squeeze(-1))
-            self.log("test/acc", self.test_acc, on_step=False, on_epoch=True, prog_bar=True)
+                          masks[:,start_idx:].squeeze(-1))
+            self.log("test/acc_best", self.test_acc, on_step=False, on_epoch=True, prog_bar=True)
 
 
     def on_test_epoch_end(self):
@@ -184,10 +210,19 @@ class TPPLitModule(LightningModule):
                 wd_parameters.append(params)
 
         weight_decay = self.hparams.optimizer.keywords['weight_decay']
-        optimizer = self.hparams.optimizer([
+        params = [
             {'params': wd_parameters, 'weight_decay': weight_decay},
-            {'params': no_wd_parameters, 'weight_decay': 0.0}])
+            {'params': no_wd_parameters, 'weight_decay': 0.0}]
 
+        if sum(p.numel() for p in self.criterion.parameters() if p.requires_grad) > 0:
+            params + [{'params': self.criterion.parameters()}]
+
+        optimizer = self.hparams.optimizer(params)
+        #optimizer = self.hparams.optimizer([
+        #    {'params': wd_parameters, 'weight_decay': weight_decay},
+        #    {'params': no_wd_parameters, 'weight_decay': 0.0}])
+
+        #import IPython; IPython.embed()
         if self.hparams.scheduler is not None:
             scheduler = self.hparams.scheduler(optimizer=optimizer)
             return {
@@ -201,6 +236,3 @@ class TPPLitModule(LightningModule):
             }
         return {"optimizer": optimizer}
 
-
-if __name__ == "__main__":
-    _ = MNISTLitModule(None, None, None)
