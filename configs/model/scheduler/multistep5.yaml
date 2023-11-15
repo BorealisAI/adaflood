@@ -1,0 +1,11 @@
+_target_: torch.optim.lr_scheduler.MultiStepLR
+_partial_: true
+milestones: [25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 275]
+gamma: 0.5
+
+  #_target_: torch.optim.lr_scheduler.OneCycleLR
+  #_partial_: true
+  #max_lr: ${model.optimizer.lr}
+  #epochs: ${trainer.max_epochs}
+  #steps_per_epoch: 391
+

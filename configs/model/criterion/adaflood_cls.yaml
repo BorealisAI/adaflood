@@ -1,0 +1,9 @@
+_target_: src.models.components.criterion.AdaFloodCLSLoss
+num_classes: ${data.datasets.num_classes}
+
+alpha_init: 1.0
+beta_init: 0.0
+affine_train: False
+
+gamma: 0.5
+

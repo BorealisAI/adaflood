@@ -1,0 +1,31 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+defaults:
+  - override /data: tabular_dataset.yaml # IP
+  - override /model: resnet18.yaml
+  - override /callbacks: cls.yaml
+  - override /trainer: default.yaml
+  - override /model/criterion: cls.yaml
+  - override /hydra: default.yaml
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+tags: ["cls", "test"]
+
+seed: 1
+
+trainer:
+  min_epochs: 25
+  max_epochs: 200
+
+data:
+  batch_size: 128
+
+hydra:
+  run:
+    dir: ${paths.log_dir}/${task_name}/seed${seed}/lr${model.optimizer.lr}_wd${model.optimizer.weight_decay}  # /runs/${now:%Y-%m-%d}_${now:%H-%M-%S}
+

@@ -1,0 +1,40 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+defaults:
+  - override /data: cls_dataset.yaml
+  - override /model: resnet34.yaml
+  - override /callbacks: cls.yaml
+  - override /trainer: default.yaml
+  - override /model/criterion: cls.yaml
+  - override /hydra: default.yaml
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+tags:
+  - cls
+  - aux${data.aux_num}
+
+seed: 1
+
+model:
+  net:
+    pretrained: True
+
+trainer:
+  min_epochs: 25
+  max_epochs: 300
+
+data:
+  batch_size: 128
+
+hydra:
+  run:
+    dir: ${paths.log_dir}/${task_name}/seed${seed}/lr${model.optimizer.lr}_wd${model.optimizer.weight_decay}_mdim${model.net.d_model}/aux${data.aux_idx}  # /runs/${now:%Y-%m-%d}_${now:%H-%M-%S}
+
+paths:
+  ckpt_dir: ${paths.log_dir}/${task_name}/seed${seed}/lr${model.optimizer.lr}_wd${model.optimizer.weight_decay}_mdim${model.net.d_model}/aux${data.aux_idx}
+

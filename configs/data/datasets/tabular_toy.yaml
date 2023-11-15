@@ -1,0 +1,3 @@
+dataset: 'tabular_toy'
+num_classes: 10
+

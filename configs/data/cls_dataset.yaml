@@ -1,0 +1,19 @@
+_target_: src.data.cls_dataset.CLSDataModule
+
+defaults:
+  - _self_
+  - datasets: cifar10
+
+data_dir: ${paths.data_dir}
+batch_size: 128
+num_workers: 8
+pin_memory: False
+
+train_rate: 1.0
+alpha: 0.0 # rate of noisy labels
+imb_factor: 1.0 # as it goes to 0.0, it will be more imbalanced
+
+# AdaFlood
+aux_idx: -1 # -1 for no aux split others aux split
+aux_num: 5 # total number of aux models
+

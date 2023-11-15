@@ -1,0 +1,31 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+defaults:
+  - override /data: tpp_dataset.yaml
+  - override /model: intensity_free.yaml
+  - override /callbacks: tpp.yaml
+  - override /trainer: default.yaml
+  - override /model/criterion: iflood_tpp.yaml
+  - override /hydra: default.yaml
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+tags: ["iflood", "test"]
+
+seed: 10 # 1
+
+trainer:
+  min_epochs: 300
+  max_epochs: 2000 #6000
+
+data:
+  batch_size: 24
+
+hydra:
+  run:
+    dir: ${paths.log_dir}/${task_name}/seed${seed}/lr${model.optimizer.lr}_wd${model.optimizer.weight_decay}_fl${model.criterion.flood_level}  # /runs/${now:%Y-%m-%d}_${now:%H-%M-%S}
+

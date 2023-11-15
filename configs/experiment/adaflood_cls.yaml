@@ -1,0 +1,33 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+defaults:
+  - override /data: cls_dataset.yaml
+  - override /model: resnet18_aux.yaml
+  - override /callbacks: cls.yaml
+  - override /trainer: default.yaml
+  - override /model/criterion: adaflood_cls.yaml
+  - override /hydra: default.yaml
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+tags: ["adaflood", "test"]
+
+seed: 1
+
+trainer:
+  min_epochs: 25
+  max_epochs: 300
+
+data:
+  batch_size: 128
+
+hydra:
+  run:
+    dir: ${paths.log_dir}/${task_name}/seed${seed}/lr${model.optimizer.lr}_wd${model.optimizer.weight_decay}_mdim${model.net.aux_d_model}_gamma${model.criterion.gamma}_aux${data.aux_num}  # /runs/${now:%Y-%m-%d}_${now:%H-%M-%S}
+
+paths:
+  ckpt_dir: ${paths.log_dir}/${task_name}/seed${seed}/lr${model.optimizer.lr}_wd${model.optimizer.weight_decay}_mdim${model.net.aux_d_model}_gamma${model.criterion.gamma}_aux${data.aux_num}/checkpoints

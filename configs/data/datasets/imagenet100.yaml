@@ -1,0 +1,3 @@
+dataset: 'imagenet100'
+num_classes: 100
+
