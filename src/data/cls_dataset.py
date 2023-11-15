@@ -442,8 +442,7 @@ class CLSDataModule(LightningDataModule):
             batch_size=self.batch_size,
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
-            sampler=subset_sampler,
-            drop_last=True
+            sampler=subset_sampler
         )
 
     def teardown(self, stage: Optional[str] = None):

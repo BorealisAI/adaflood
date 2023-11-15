@@ -68,15 +68,32 @@ class ResBaseAux(ResBase):
         if self.training:
             orig_indices = input_dict[constants.INDICES]
 
-            np_aux_eval_losses = np.stack(
-                [self.eval_loss_dict[idx.item()] for idx in orig_indices], axis=0)
+            np_aux_eval_losses = []
+            for idx in orig_indices:
+                if idx.item() not in self.eval_loss_dict:
+                    np_aux_eval_losses.append(0.)
+                else:
+                    np_aux_eval_losses.append(self.eval_loss_dict[idx.item()])
+            np_aux_eval_losses = np.stack(np_aux_eval_losses)
+
+            #np_aux_eval_losses = np.stack(
+            #    [self.eval_loss_dict[idx.item()] for idx in orig_indices], axis=0)
             aux_eval_losses = torch.from_numpy(np_aux_eval_losses).to(
                 input_dict[constants.IMAGES].device)
             aux_output_dict.update({constants.AUX_EVAL_LOSSES: aux_eval_losses})
 
             if self.eval_logit_dict is not None:
-                np_aux_eval_logits = np.stack(
-                    [self.eval_logit_dict[idx.item()] for idx in orig_indices], axis=0)
+                dummy_logits = np.zeros(self.num_classes, dtype=float)
+                np_aux_eval_logits = []
+                for idx in orig_indices:
+                    if idx.item() not in self.eval_logit_dict:
+                        np_aux_eval_logits.append(dummy_logits)
+                    else:
+                        np_aux_eval_logits.append(self.eval_logit_dict[idx.item()])
+                np_aux_eval_logits = np.stack(np_aux_eval_logits)
+
+                #np_aux_eval_logits = np.stack(
+                #    [self.eval_logit_dict[idx.item()] for idx in orig_indices], axis=0)
                 aux_eval_logits = torch.from_numpy(np_aux_eval_logits).to(
                     input_dict[constants.IMAGES].device)
                 aux_output_dict.update({constants.AUX_LOGITS: aux_eval_logits})
