@@ -13,7 +13,7 @@ from torchvision.transforms import transforms
 
 from src import constants
 from src.utils.utils import collate_fn, generate_noisy_labels, generate_noisy_labels_subgroup
-from src.data.cls.imagenet import ImageNet100, ImageNet
+from src.data.cls.imagenet import ImageNet100, ImageNet, build_transform
 from src.data.cls.cars import Cars
 
 from torch.utils.data.sampler import SubsetRandomSampler
@@ -239,37 +239,39 @@ class CLSDataModule(LightningDataModule):
                 self.data_dir, split='test', transform=self.test_transforms)
 
         elif self.dataset == 'imagenet':
-            self.train_transforms = transforms.Compose([
-                transforms.RandomResizedCrop(224),
-                transforms.RandomHorizontalFlip(),
-                transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4, hue=0),
-                transforms.ToTensor(),
-                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
-            self.test_transforms = transforms.Compose([
-                transforms.Resize(256),
-                transforms.CenterCrop(224),
-                transforms.ToTensor(),
-                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
+            self.train_transforms = build_transform(split='train')
+            self.test_transforms = build_transform(split='test')
+
+            #self.train_transforms = transforms.Compose([
+            #    transforms.RandomResizedCrop(224),
+            #    transforms.RandomHorizontalFlip(),
+            #    transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4, hue=0),
+            #    transforms.ToTensor(),
+            #    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
+            #self.test_transforms = transforms.Compose([
+            #    transforms.Resize(256),
+            #    transforms.CenterCrop(224),
+            #    transforms.ToTensor(),
+            #    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
 
             # default train: 1_024_892, val: 256_275
             if os.path.exists(split_path):
                 shuffled_indices = np.load(split_path)
                 train_indices = shuffled_indices['train']
-                val_indices = shuffled_indices['val']
+                #val_indices = shuffled_indices['val']
                 train_num = len(train_indices)
             else:
-                shuffled_indices = np.arange(1_024_892)
+                shuffled_indices = np.arange(1_281_167)
                 np.random.shuffle(shuffled_indices)
-                train_num = int(1_024_892 * train_rate)
+                train_num = int(1_281_167 * train_rate)
                 train_indices = shuffled_indices[:train_num]
-                val_indices = shuffled_indices[1_024_892:]
-                np.savez(split_path, train=train_indices, val=val_indices)
+                #val_indices = shuffled_indices[1_024_892:]
+                np.savez(split_path, train=train_indices)
 
             trainset = ImageNet(
                 self.data_dir, split='train', transform=self.train_transforms)
-            #shuffled_trainset = Subset(trainset, train_indices)
             self.data_val = ImageNet(
-                self.data_dir, split='val', transform=self.train_transforms)
+                self.data_dir, split='val', transform=self.test_transforms)
             self.data_test = ImageNet(
                 self.data_dir, split='test', transform=self.test_transforms)
 
