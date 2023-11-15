@@ -154,8 +154,8 @@ configs/local/default.yaml
 # Aim logging
 .aim
 
-# Scripts
-*.sh
+## Scripts
+prev/*.sh
 
 # Misc
 .hydra
