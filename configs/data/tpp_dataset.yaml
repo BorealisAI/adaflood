@@ -11,13 +11,13 @@ pin_memory: False
 
 train_rate: 1.0
 eval_rate: 1.0
-noise_rate: 0.0
-seq_rate: 1.0
-missing_rate: 0.0
+alpha: 0.0 # dummy variable (for cls only)
 use_mark: True
-run_bootstrap: False
 
 # AdaFlood
-train_first_half: False # train aux1 on first half
-train_second_half: False # train aux2 on second half
+aux_idx: -1
+aux_num: 2
+
+  #train_first_half: False # train aux1 on first half
+  #train_second_half: False # train aux2 on second half
 

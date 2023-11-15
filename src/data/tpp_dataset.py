@@ -2,14 +2,10 @@ import os
 import numpy as np
 import torch
 import logging
-from torch.utils.data import Dataset
-from torch.utils.data import DataLoader
+from torch.utils.data import Dataset, Subset, DataLoader
 
 from lightning import LightningModule
 from src import constants
-#from plato.bear.dataset.base_dataset import BaseDataset
-#from plato.bear.utils.shared_data import SharedData
-#from code import constants
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +25,36 @@ class TPPDataModule(LightningModule):
         pass
 
     def setup(self, stage):
-        self.train_dataset = TPPDataset(
+        train_dataset = TPPDataset(
             self.data_dir, self.dataset, self.num_classes, mode='train', **self.kwargs)
         self.val_dataset = TPPDataset(
             self.data_dir, self.dataset, self.num_classes, mode='val', **self.kwargs)
         self.test_dataset = TPPDataset(
             self.data_dir, self.dataset, self.num_classes, mode='test', **self.kwargs)
+
+        # add aux_infer_dataset and dataloader for adaflood
+        train_num = len(train_dataset)
+        train_indices = np.arange(train_num)
+
+        exclusion_indices = np.array([])
+        inclusion_indices = np.arange(0, train_num, 1)
+
+        aux_idx = self.kwargs.get('aux_idx', -1) # -1 for no aux, others for aux idx
+        if aux_idx >= 0:
+            aux_num = self.kwargs['aux_num']
+            assert aux_idx < aux_num
+            start_idx = int(train_num * aux_idx / float(aux_num))
+            end_idx = int(train_num * (aux_idx + 1) / float(aux_num))
+            exclusion_indices = np.arange(start_idx, end_idx, 1)
+            inclusion_indices = np.array(list(
+                set(np.arange(train_num).tolist()) - set(exclusion_indices.tolist())))
+
+        self.train_dataset = TPPTrainWrapper(
+            train_dataset, train_indices, inclusion_indices)
+
+        self.aux_infer_dataset = TPPTrainWrapper(
+            train_dataset, train_indices, exclusion_indices)
+
 
     def train_dataloader(self):
         return DataLoader(
@@ -49,6 +69,11 @@ class TPPDataModule(LightningModule):
     def test_dataloader(self):
         return DataLoader(
             self.test_dataset, batch_size=int(self.batch_size/4), num_workers=self.num_workers,
+            shuffle=False, pin_memory=self.pin_memory)
+
+    def axu_infer_dataloader(self):
+        return DataLoader(
+            self.aux_infer_dataset, batch_size=int(self.batch_size/4), num_workers=self.num_workers,
             shuffle=False, pin_memory=self.pin_memory)
 
 
@@ -100,20 +125,20 @@ class TPPDataset(Dataset):
             num_data, mode=mode, train_size=train_size, val_size=val_size,
             train_rate=train_rate, eval_rate=eval_rate)
 
-        if mode == 'train':
-            self.first_half_end_idx = int((end_idx - start_idx) / 2.0)
+        #if mode == 'train':
+        #    self.first_half_end_idx = int((end_idx - start_idx) / 2.0)
 
-            train_first_half = kwargs.get('train_first_half', False)
-            train_second_half = kwargs.get('train_second_half', False)
+        #    train_first_half = kwargs.get('train_first_half', False)
+        #    train_second_half = kwargs.get('train_second_half', False)
 
-            if train_first_half and train_second_half:
-                raise Exception(f'Both train_first_half and train_second_half are True. Only one of them can be True')
-            elif train_first_half:
-                end_idx = self.first_half_end_idx
-            elif train_second_half:
-                start_idx = self.first_half_end_idx
+        #    if train_first_half and train_second_half:
+        #        raise Exception(f'Both train_first_half and train_second_half are True. Only one of them can be True')
+        #    elif train_first_half:
+        #        end_idx = self.first_half_end_idx
+        #    elif train_second_half:
+        #        start_idx = self.first_half_end_idx
 
-            self.orig_start_idx = start_idx
+        #    self.orig_start_idx = start_idx
 
         self._times = torch.tensor(
             times[start_idx:end_idx], dtype=torch.float32).unsqueeze(-1)
@@ -159,13 +184,13 @@ class TPPDataset(Dataset):
     def __getitem__(self, idx):
         time, mark, mask = self._times[idx], self._marks[idx], self._masks[idx]
 
-        is_first_half = []
-        if self.mode == 'train':
-            orig_idx = self.orig_start_idx + idx
-            if orig_idx < self.first_half_end_idx:
-                is_first_half = True
-            else:
-                is_first_half = False
+        #is_first_half = []
+        #if self.mode == 'train':
+        #    orig_idx = self.orig_start_idx + idx
+        #    if orig_idx < self.first_half_end_idx:
+        #        is_first_half = True
+        #    else:
+        #        is_first_half = False
 
         missing_mask = []
         input_dict = {
@@ -173,7 +198,7 @@ class TPPDataset(Dataset):
             constants.MARKS: mark,
             constants.MASKS: mask,
             constants.MISSING_MASKS: missing_mask,
-            constants.IS_FIRST_HALF: is_first_half
+            #constants.IS_FIRST_HALF: is_first_half
         }
         return input_dict
 
@@ -187,3 +212,29 @@ class TPPDataset(Dataset):
     @property
     def num_seq(self):
         return self._times.shape[1]
+
+class TPPTrainWrapper(Dataset):
+    def __init__(self, orig_dataset, orig_indices, inclusion_indices):
+        super().__init__()
+
+        self.orig_dataset = orig_dataset
+
+        if len(inclusion_indices) > 0:
+            self.subset_inclusion_indices = orig_indices[inclusion_indices]
+        else:
+            self.subset_inclusion_indices = np.array([])
+
+        self.dataset = Subset(
+            orig_dataset, self.subset_inclusion_indices)
+        self.idx_to_orig_idx = {
+            idx: orig_idx for idx, orig_idx in enumerate(self.subset_inclusion_indices)}
+
+    def __getitem__(self, idx):
+        input_dict = self.dataset[idx]
+        input_dict[constants.INDICES] = self.idx_to_orig_idx[idx]
+        return input_dict
+
+    def __len__(self):
+        return len(self.dataset)
+
+

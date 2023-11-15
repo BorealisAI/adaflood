@@ -4,6 +4,7 @@ from typing import Sequence
 import rich
 import rich.syntax
 import rich.tree
+from rich.console import Console
 from hydra.core.hydra_config import HydraConfig
 from lightning.pytorch.utilities import rank_zero_only
 from omegaconf import DictConfig, OmegaConf, open_dict
@@ -37,7 +38,7 @@ def print_config_tree(
         resolve (bool, optional): Whether to resolve reference fields of DictConfig.
         save_to_file (bool, optional): Whether to export config to the hydra output folder.
     """
-
+    console = Console(width=100)
     style = "dim"
     tree = rich.tree.Tree("CONFIG", style=style, guide_style=style)
 
@@ -67,7 +68,8 @@ def print_config_tree(
         branch.add(rich.syntax.Syntax(branch_content, "yaml"))
 
     # print config tree
-    rich.print(tree)
+    # rich.print(tree)
+    console.print(tree)
 
     # save config tree to file
     if save_to_file:

@@ -156,3 +156,12 @@ configs/local/default.yaml
 
 # Scripts
 *.sh
+
+# Misc
+.hydra
+lightning_logs/*
+outputs/*
+results/*
+summary/*
+core
+

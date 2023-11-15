@@ -9,9 +9,10 @@ USE_MARKS = "use_marks"
 TIMES = "times"
 MARKS = "marks"
 MASKS = "masks"
-LOG_MEAN = 'log_mean'
-LOG_STD = 'log_std'
-IS_FIRST_HALF = 'is_first_half' # for adaflood
+LOG_MEAN = "log_mean"
+LOG_STD = "log_std"
+INDICES = "indices"
+#IS_FIRST_HALF = 'is_first_half' # for adaflood
 
 # Outputs
 HISTORIES = "histories"
@@ -25,6 +26,13 @@ CLS_LOGITS = "class_logits"
 CLS_PREDS = "class_preds"
 ATTENTIONS = "attentions"
 ENGINE = "ENGINE"
+LOG_WEIGHTS = "log_weights"
+AUX_LOG_WEIGHTS = "aux_log_weights"
+PROB_DIST = "prob_dist"
+AUX_PROB_DIST = "aux_prob_dist"
+LOGNORM_DIST = "lognorm_dist"
+DIST_MU = "dist_mu"
+DIST_SIGMA = "dist_sigma"
 
 # AdaFlood
 ALPHA = 'alpha'
@@ -58,8 +66,27 @@ AUX2_ENGINE = "aux2_ENGINE"
 
 # Evaluatation
 LOSS = "loss"
+LOSSES = "losses"
 CHECKPOINT_METRIC = "checkpoint_metric"
 
 # Transformer
 PAD = 0
+
+
+# Classification
+
+# Inputs
+IMAGES = "images"
+LABELS = "labels"
+#IS_FIRST_HALF = 'is_first_half' # for adaflood
+
+# Outputs
+LOGITS = "logits"
+AUX_LOGITS = "aux_logits"
+AUX_LOSSES = "aux_losses"
+AUX_PREDS = "aux_preds"
+AUX_MIN_LOSS = "aux_min_loss"
+AUX_EVAL_LOSSES = "aux_eval_losses"
+AUX_TRAIN_LOSSES = "aux_train_losses"
+
 

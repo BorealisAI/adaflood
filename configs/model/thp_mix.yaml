@@ -2,7 +2,7 @@ _target_: src.models.tpp_module.TPPLitModule
 
 defaults:
   - _self_
-  - criterion: tpp # [tpp, flood, iflood, adaflood]
+  - criterion: tpp # [tpp, flood_tpp, iflood_tpp, adaflood_tpp]
 
 optimizer:
   _target_: torch.optim.Adam

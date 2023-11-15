@@ -2,7 +2,7 @@ _target_: src.models.tpp_module.TPPLitModule
 
 defaults:
   - _self_
-  - criterion: tpp # [tpp, flood, iflood, adaflood]
+  - criterion: tpp # [tpp, flood_tpp, iflood_tpp, adaflood_tpp]
 
 optimizer:
   _target_: torch.optim.Adam
@@ -15,10 +15,10 @@ optimizer:
 net:
   _target_: src.models.tpp.tpp_network.IntensityFreePredictor
   name: 'if'
-  hidden_dim: 96
+  d_model: 96
   num_components: 8
   num_classes: ${data.datasets.num_classes}
   activation:
     name: tanh
-    in_features: ${model.net.hidden_dim}
+    in_features: ${model.net.d_model}
 

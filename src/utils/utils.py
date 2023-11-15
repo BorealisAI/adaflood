@@ -1,11 +1,14 @@
 import os
 import glob
+import torch
 import warnings
 from importlib.util import find_spec
 from typing import Callable
+import numpy as np
 
 from omegaconf import DictConfig
 
+from src import constants
 from src.utils import pylogger, rich_utils
 
 log = pylogger.get_pylogger(__name__)
@@ -132,3 +135,49 @@ def load_checkpoint_path(checkpoint_dir):
     log.info(f"Loading a checkopint from {selected_checkpoint_path}")
     return selected_checkpoint_path
 
+def collate_fn(batch):
+    input_dict = {
+        constants.IMAGES: torch.stack([x[0] for x in batch]).float(),
+        constants.LABELS: torch.tensor([x[1] for x in batch]).long()
+    }
+    return input_dict
+
+def to_device(tensor_dict, device='cuda'):
+    for key in tensor_dict.keys():
+        if isinstance(tensor_dict[key], torch.Tensor):
+            tensor_dict[key] = tensor_dict[key].to(device)
+    return tensor_dict
+
+def generate_noisy_labels(labels, num_classes):
+    noisy_labels = []
+    for label in labels:
+        cand_labels = np.array(list(
+            set(np.arange(num_classes).tolist()).difference(set([label]))))
+        noisy_label = np.random.choice(cand_labels, size=1, replace=False)
+        noisy_labels.append(noisy_label)
+
+    noisy_labels = np.concatenate(noisy_labels)
+    return noisy_labels
+
+def generate_noisy_labels_subgroup(labels, num_classes, alpha):
+    label_maps = {0: [8], 1: [9], 2: [], 3: [5], 4: [7], 5: [3], 6: [], 7: [4], 8: [0], 9: [1]}
+    alphas = {0: alpha + 0.3, 1: alpha + 0.2, 2: 0.0, 3: alpha + 0.1, 4: alpha,
+              5: alpha + 0.1, 6: 0.0, 7: alpha, 8: alpha + 0.3, 9: alpha + 0.2}
+
+    noisy_labels = []
+    for label in labels:
+        cand_labels = label_maps[int(label)]
+        if cand_labels:
+            flip_p = alphas[int(label)]
+            is_flip = np.random.binomial(n=1, p=flip_p, size=1).astype(bool).item()
+            if is_flip:
+                noisy_label = np.random.choice(cand_labels, size=1, replace=False).item()
+            else:
+                noisy_label = label.item()
+        else:
+            noisy_label = label.item()
+
+        noisy_labels.append(noisy_label)
+
+    noisy_labels = np.stack(noisy_labels)
+    return noisy_labels

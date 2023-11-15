@@ -129,24 +129,26 @@ class TPPLitModule(LightningModule):
 
     def on_validation_epoch_end(self):
         val_nll = self.val_nll.compute()
-        prev_val_nll_best = self.val_nll_best.compute()
-        val_nll_best = self.val_nll_best(val_nll)
+        self.val_nll_best.update(val_nll)
+        val_nll_best = self.val_nll_best.compute()
         self.log("val/nll_best", self.val_nll_best.compute(), sync_dist=True, prog_bar=True)
 
         val_rmse = self.val_rmse.compute()
-        prev_val_rmse_best = self.val_rmse_best.compute()
-        val_rmse_best = self.val_rmse_best(val_rmse)
+        self.val_rmse_best.update(val_rmse)
+        val_rmse_best = self.val_rmse_best.compute()
         self.log("val/rmse_best", self.val_rmse_best.compute(), sync_dist=True, prog_bar=True)
 
         val_acc = self.val_acc.compute()
 
-        #if val_nll < prev_val_nll_best:
         if val_nll == val_nll_best:
             self.val_rmse_with_nll_best.reset()
             self.val_rmse_with_nll_best(val_rmse)
             self.log("val/rmse_with_nll_best", self.val_rmse_with_nll_best.compute(), sync_dist=True, prog_bar=True)
             self.val_acc_with_nll_best.reset()
             self.val_acc_with_nll_best(val_acc)
+            self.log("val/acc_with_nll_best", self.val_acc_with_nll_best.compute(), sync_dist=True, prog_bar=True)
+        else:
+            self.log("val/rmse_with_nll_best", self.val_rmse_with_nll_best.compute(), sync_dist=True, prog_bar=True)
             self.log("val/acc_with_nll_best", self.val_acc_with_nll_best.compute(), sync_dist=True, prog_bar=True)
 
         #if val_rmse < prev_val_rmse_best:
@@ -157,6 +159,10 @@ class TPPLitModule(LightningModule):
             self.val_acc_with_rmse_best.reset()
             self.val_acc_with_rmse_best(val_acc)
             self.log("val/acc_with_rmse_best", self.val_acc_with_rmse_best.compute(), sync_dist=True, prog_bar=True)
+        else:
+            self.log("val/nll_with_rmse_best", self.val_nll_with_rmse_best.compute(), sync_dist=True, prog_bar=True)
+            self.log("val/acc_with_rmse_best", self.val_acc_with_rmse_best.compute(), sync_dist=True, prog_bar=True)
+
 
 
 
@@ -222,7 +228,6 @@ class TPPLitModule(LightningModule):
         #    {'params': wd_parameters, 'weight_decay': weight_decay},
         #    {'params': no_wd_parameters, 'weight_decay': 0.0}])
 
-        #import IPython; IPython.embed()
         if self.hparams.scheduler is not None:
             scheduler = self.hparams.scheduler(optimizer=optimizer)
             return {

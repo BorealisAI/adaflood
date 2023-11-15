@@ -2,21 +2,41 @@
 
 defaults:
   - _self_
-  - data: tpp_dataset.yaml # mnist.yaml # choose datamodule with `test_dataloader()` for evaluation
-  - model: thp_mix.yaml # thp_mix.yaml intensity_free.yaml mnist.yaml
-  - logger: null
-  - trainer: default.yaml
-  - paths: default.yaml
-  - extras: default.yaml
-  - hydra: default.yaml
+  - data: cls_dataset
+  - model: resnet18 # thp_mix intensity_free thp_mix_aux intensity_free_aux
+  - callbacks: cls.yaml
+  - logger: null # done - set logger here or use command line (e.g. `python train.py logger=tensorboard`)
+  - trainer: default.yaml # done
+  - paths: default.yaml # done
+  - extras: default.yaml # done
+  - hydra: default.yaml # done
 
-task_name: ${data.datasets.dataset}_${model.net.name}_${tag}/eval # "eval"
+  # experiment configs allow for version control of specific hyperparameters
+  # e.g. best hyperparameters for given model and datamodule
+  - experiment: null
 
-tags: ["dev"]
-tag: "final"
+  # config for hyperparameter optimization
+  - hparams_search: null # tpp_optuna
+
+  # optional local config for machine/user specific settings
+  # it's optional since it doesn't need to exist and is excluded from version control
+  - optional local: default.yaml
+
+  # debugging config (enable through command line, e.g. `python train.py debug=default)
+  - debug: null
+
+
+task_name: ${data.datasets.dataset}_${model.net.name}_alpha${data.alpha}_imb${data.imb_factor}_${tags[0]}_${tags[1]} # "train"
+
+tags: ["dev", "test"]
 
 # passing checkpoint path is necessary for evaluation
-ckpt_path: ${paths.ckpt_dir}/${data.datasets.dataset}_${model.net.name}/checkpoint/best_eval/rmse/ckpt_engine.pth.tar
+ckpt_path: ${paths.ckpt_dir}/epoch_${ckpt_epoch}.ckpt
+  # cifar10 w/ - unreg: epcoh_0249-v2, flood: epoch_0293.ckpt, iflood: epoch_0269.ckpt, adaflood: epoch_0298.ckpt
+  # cifar10 w/o - unreg: epcoh_0242, flood: epoch_0191.ckpt, iflood: epoch_0249.ckpt, adaflood: epoch_0225.ckpt
+  # cifar100 w/ - unreg: epcoh_0228, flood: epoch_0188.ckpt, iflood: epoch_0195.ckpt, adaflood: epoch_0135.ckpt
+  # svhn w/ - unreg: epcoh_0214, flood: epoch_0295.ckpt, iflood: epoch_0230.ckpt, adaflood: epoch_0296.ckpt
+ckpt_epoch: null
 
 # seed for random number generators in pytorch, numpy and python.random
 seed: 1

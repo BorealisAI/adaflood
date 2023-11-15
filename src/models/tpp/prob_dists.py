@@ -116,8 +116,8 @@ class LogNormalMixture(nn.Module):
             log_weights + dist.log_prob(times), dim=-1, keepdim=True)
 
         # compute log survival
-        surv_dist = LogNormal(mu, sigma)
-        log_survival_x = surv_dist.log_survival_function(times)
+        dist = LogNormal(mu, sigma)
+        log_survival_x = dist.log_survival_function(times)
         log_survival_all = torch.logsumexp(log_weights + log_survival_x, dim=-1)
 
         # compute predictions
@@ -143,6 +143,44 @@ class LogNormalMixture(nn.Module):
         # compute non event log-likelihood (consider only the last events)
         log_survival_last = torch.gather(
             log_survival_all, dim=-1, index=last_event_idx.unsqueeze(-1)).squeeze(-1)
+
+        output_dict = {
+            'event_ll': event_ll, 'surv_ll': log_survival_last, 'preds': preds, 'log_weights': log_weights, 'lognorm_dist': dist, 'mu': mu, 'sigma': sigma}
+        return output_dict
+
+    def compute_losses_and_preds(self, dist, log_weights, times, masks):
+        batch_size = times.shape[0]
+        times = times + 1e-12
+
+        log_probs = torch.logsumexp(
+            log_weights + dist.log_prob(times), dim=-1, keepdim=True)
+
+        # compute log survival
+        log_survival_x = dist.log_survival_function(times)
+        log_survival_all = torch.logsumexp(log_weights + log_survival_x, dim=-1)
+
+        # compute predictions
+        log_preds = torch.logsumexp(
+            log_weights + dist.loc + (dist.scale ** 2) / 2.0, dim=-1)
+        preds = torch.exp(log_preds) - 1e-12
+        preds = preds.unsqueeze(-1)
+
+        # if it is a latent variable, compute log-likelihood and predictions as the mean of the
+        # latent samples z_1, z_2, ... z_M
+        if self.vi_method is not None:
+            num_z_samples = log_probs.shape[0]
+            log_probs = torch.logsumexp(log_probs, dim=0) - torch.log(torch.tensor(num_z_samples))
+            log_survival_all = torch.logsumexp(log_survival_all, dim=0) - torch.log(torch.tensor(num_z_samples))
+            preds = torch.mean(preds, dim=0)
+
+        # compute log-likelihood (consider only the valid events based on masks)
+        last_event_idx = masks.squeeze(-1).sum(-1, keepdim=True).long().squeeze(-1) - 1 # (batch_size,)
+        masks_without_last = masks.clone()
+        masks_without_last[torch.arange(batch_size), last_event_idx] = 0
+        event_ll = (log_probs * masks_without_last).sum((1, 2)) # (B,)
+
+        # compute non event log-likelihood (consider only the last events)
+        log_survival_last = torch.gather(log_survival_all, dim=-1, index=last_event_idx.unsqueeze(-1)).squeeze(-1)
 
         output_dict = {
             'event_ll': event_ll, 'surv_ll': log_survival_last, 'preds': preds}
