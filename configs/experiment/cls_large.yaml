@@ -18,16 +18,12 @@ tags: ["cls", "test"]
 
 seed: 1
 
-model:
-  net:
-    pretrained: True
-
 trainer:
   min_epochs: 25
   max_epochs: 200
 
 data:
-  batch_size: 128
+  batch_size: 256
 
 hydra:
   run:

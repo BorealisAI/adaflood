@@ -1,13 +1,17 @@
 #!/bin/bash
-#SBATCH --gres=gpu:1
-#SBATCH --ntasks-per-node=4
-#SBATCH --mem=64G
+#SBATCH --account=rrg-dsuth
+#SBATCH --gres=gpu:4
+#SBATCH --ntasks=1
+#SBATCH --mem=490G
+#SBATCH --cpus-per-task=48
 #SBATCH --time=3-0:00
-#SBATCH --job-name=adaflood_sweep
+#SBATCH --job-name=base_sweep
 #SBATCH --error=results/%x.%j.err
 #SBATCH --output=results/%x.%j.out
 
-source ~/pl/bin/activate
+
+#source ~/pl/bin/activate
+source ~/scratch/env/bin/activate
 
 # Default values for arguments
 seed=1
@@ -112,7 +116,7 @@ then
     done
 elif [ $task == "cls" ]
 then
-    if [ $dataset == "cars" ]
+    if [ $dataset == "imagenet" ]
     then
         experiment=adaflood_cls_large
     else

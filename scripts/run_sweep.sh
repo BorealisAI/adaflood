@@ -1,6 +1,7 @@
 #!/bin/bash
 
-source ~/pl/bin/activate
+#source ~/pl/bin/activate
+source ~/scratch/env/bin/activate
 
 # Default values for arguments
 seed=1
@@ -62,7 +63,8 @@ tmp_weight_decay=$weight_decay
 if [ $compute_node == "true" ]
 then
     #command="sbatch --exclude=compute1080ti08,compute1080ti06,compute1080ti10,compute1080ti03,compute1080ti04"
-    command="sbatch --exclude=compute1080ti[01-10]"
+    #command="sbatch --exclude=compute1080ti[01-10]"
+    command="sbatch"
 else
     command="bash"
 fi
@@ -135,7 +137,7 @@ then
         lrs=(0.1)
         weight_decays=(0.0001)
         scheduler=multistep6
-        max_epochs=400
+        max_epochs=150
         lr=0.1
         weight_decay=0.0001
     elif [ $dataset == "cifar10" ]

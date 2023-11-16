@@ -1,12 +1,17 @@
 import os
 import os.path as osp
 import pickle
+import PIL
 from PIL import Image
 import numpy as np
 import lmdb
 import six
 import torch.utils.data as data
 from torch.utils.data import Dataset
+import torchvision.transforms as T
+from timm.data import create_transform
+from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
+
 
 class ImageNet100(Dataset):
     def __init__(self, data_dir, split, transform=None):
@@ -32,7 +37,7 @@ class ImageNet100(Dataset):
 
             file_names = os.listdir(folder_path)
 
-            if split is not 'test':
+            if split != 'test':
                 num_train = int(len(file_names) * 0.8) # 80% Training data
 
             for j, fid in enumerate(file_names):
@@ -121,10 +126,9 @@ def loads_data(buf):
     return pickle.loads(buf)
 
 
-class ImageFolderLMDB(data.Dataset):
-#    def __init__(self, data_dir, split, transform=None):
+class ImageNet(data.Dataset):
     def __init__(self, data_dir, split, transform=None, target_transform=None):
-        self.db_path = osp.join(data_dir, 'train.lmdb' if split == 'train' else 'val.lmdb'
+        self.db_path = osp.join(data_dir, 'imagenet_train.lmdb' if split == 'train' else 'imagenet_val.lmdb')
         self.env = lmdb.open(self.db_path, subdir=osp.isdir(self.db_path),
                              readonly=True, lock=False,
                              readahead=False, meminit=False)
@@ -155,13 +159,12 @@ class ImageFolderLMDB(data.Dataset):
         if self.transform is not None:
             img = self.transform(img)
 
-        im2arr = np.array(img)
+        #im2arr = np.array(img)
 
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        # return img, target
-        return im2arr, target
+        return img, target
 
     def __len__(self):
         return self.length

@@ -1,14 +1,17 @@
 #!/bin/bash
+#SBATCH --account=rrg-dsuth
 #SBATCH --gres=gpu:4
 #SBATCH --ntasks=1
-#SBATCH --mem=160G
-#SBATCH --cpus-per-task=32
-#SBATCH --time=5-0:00
-#SBATCH --job-name=aux
+#SBATCH --mem=490G
+#SBATCH --cpus-per-task=48
+#SBATCH --time=3-0:00
+#SBATCH --job-name=base_sweep
 #SBATCH --error=results/%x.%j.err
 #SBATCH --output=results/%x.%j.out
 
-source ~/pl/bin/activate
+
+#source ~/pl/bin/activate
+source ~/scratch/env/bin/activate
 
 # Default values for arguments
 seed=1
@@ -25,8 +28,9 @@ batch_size=16
 max_epochs=300
 d_model=64
 aux_num=10
+ckpt_path=null
 #ckpt_path=/home/whbae/meta-tpp-lightning/results/imagenet100_resnet34_alpha0.0_imb1.0_cls_aux-2_test/seed1/lr0.1_wd0.0001_mdim64/aux-1/checkpoints/epoch_0190.ckpt
-ckpt_path=/home/whbae/meta-tpp-lightning/results/imagenet100_resnet34_alpha0.3_imb1.0_cls_aux-2_test/seed1/lr0.1_wd0.0001_mdim64/aux-1/checkpoints/epoch_0050.ckpt
+#ckpt_path=/home/whbae/meta-tpp-lightning/results/imagenet100_resnet34_alpha0.3_imb1.0_cls_aux-2_test/seed1/lr0.1_wd0.0001_mdim64/aux-1/checkpoints/epoch_0050.ckpt
 #ckpt_path=/home/whbae/meta-tpp-lightning/results/imagenet100_resnet34_alpha0.6_imb1.0_cls_aux-2_test/seed1/lr0.1_wd0.0001_mdim64/aux-1/checkpoints/epoch_0050.ckpt
 
 # Parsing arguments
@@ -81,7 +85,7 @@ then
     done
 elif [ $task == "cls" ]
 then
-    if [ $dataset == "cars" ]
+    if [ $dataset == "imagenet" ]
     then
         experiment=aux_cls_large
     else

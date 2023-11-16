@@ -53,8 +53,8 @@ class CLSDataModule(LightningDataModule):
         self.dataset = data_config.pop('dataset')
         self.num_classes = data_config.pop('num_classes')
         self.data_dir = data_dir
-        self.batch_size = batch_size
-        self.num_workers = num_workers
+        self.batch_size = 256 # batch_size
+        self.num_workers = int(os.environ['SLURM_CPUS_PER_TASK']) # num_workers
         self.pin_memory = pin_memory
         self.data_config = data_config
         self.kwargs = kwargs
@@ -73,13 +73,18 @@ class CLSDataModule(LightningDataModule):
         elif self.dataset == 'svhn':
             datasets.SVHN(self.data_dir, split='train', download=True)
             datasets.SVHN(self.data_dir, split='test', download=True)
-        elif self.dataset in ['imagenet100', 'imagenet']:
+        elif self.dataset == 'imagenet100':
             folder_path = os.path.join(
                 self.data_dir, 'imagenet', 'raw')
             if os.path.exists(folder_path):
                 print(f'imagenet is downloaded')
             else:
                 raise NotImplementedError(f'dataset: {self.dataset} is not downloaded')
+        elif self.dataset == 'imagenet':
+            train_file_path = os.path.join(self.data_dir, 'imagenet_train.lmdb')
+            test_file_path = os.path.join(self.data_dir, 'imagenet_val.lmdb')
+            if not os.path.exists(train_file_path) or not os.path.exists(test_file_path):
+                raise NotImplementedError(f'dataset: imagenet lmdb is not downloaded')
         elif self.dataset == 'cars':
             Cars(root=self.data_dir, train=True, download=True)
             Cars(root=self.data_dir, train=False, download=True)
@@ -242,18 +247,6 @@ class CLSDataModule(LightningDataModule):
             self.train_transforms = build_transform(split='train')
             self.test_transforms = build_transform(split='test')
 
-            #self.train_transforms = transforms.Compose([
-            #    transforms.RandomResizedCrop(224),
-            #    transforms.RandomHorizontalFlip(),
-            #    transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4, hue=0),
-            #    transforms.ToTensor(),
-            #    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
-            #self.test_transforms = transforms.Compose([
-            #    transforms.Resize(256),
-            #    transforms.CenterCrop(224),
-            #    transforms.ToTensor(),
-            #    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
-
             # default train: 1_024_892, val: 256_275
             if os.path.exists(split_path):
                 shuffled_indices = np.load(split_path)
@@ -349,7 +342,13 @@ class CLSDataModule(LightningDataModule):
             else:
                 num_noisy_samples = int(alpha * train_num)
                 noisy_indices = np.random.choice(train_indices, size=num_noisy_samples, replace=False)
-                labels = np.array([trainset[idx][1] for idx in noisy_indices])
+                labels = []
+                for i, idx in enumerate(noisy_indices):
+                    labels.append(trainset[idx][1])
+                    if i % 1000 == 0:
+                        print(f'{i}/{len(noisy_indices)}')
+                labels = np.array(labels)
+                #labels = np.array([trainset[idx][1] for idx in noisy_indices])
                 noisy_labels = generate_noisy_labels(labels, self.num_classes)
 
                 noisy_idx_to_label = {

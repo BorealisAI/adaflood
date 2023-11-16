@@ -1,14 +1,17 @@
 #!/bin/bash
+#SBATCH --account=rrg-dsuth
 #SBATCH --gres=gpu:4
 #SBATCH --ntasks=1
-#SBATCH --mem=160G
-#SBATCH --cpus-per-task=32
+#SBATCH --mem=490G
+#SBATCH --cpus-per-task=48
 #SBATCH --time=3-0:00
 #SBATCH --job-name=base_sweep
 #SBATCH --error=results/%x.%j.err
 #SBATCH --output=results/%x.%j.out
 
-source ~/pl/bin/activate
+
+#source ~/pl/bin/activate
+source ~/scratch/env/bin/activate
 
 # Default values for arguments
 seed=1
@@ -75,7 +78,7 @@ then
         model.optimizer.lr=$lr model.optimizer.weight_decay=$weight_decay data.aux_num=$aux_num tags=["tpp","final"]
 elif [ $task == "cls" ]
 then
-    if [ $dataset == "cars" ]
+    if [ $dataset == "imagenet" ]
     then
         experiment=cls_large
     else
