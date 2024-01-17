@@ -34,9 +34,9 @@ res_dict = {
 class ResBaseAux(ResBase):
     def __init__(self, name="resnet18", num_classes=10, d_model=64,
                  aux_logit_path=None, aux_lr=None, aux_weight_decay=None,
-                 aux_d_model=None, pretrained=False):
+                 aux_d_model=None, pretrained=False, smaller=False):
         super().__init__(name=name, num_classes=num_classes,
-                         d_model=d_model, pretrained=pretrained)
+                         d_model=d_model, pretrained=pretrained, smaller=smaller)
 
         aux_eval_logit_path = aux_logit_path
         #aux_train_logit_path = aux_logit_path.replace('eval', 'train')

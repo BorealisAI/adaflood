@@ -165,11 +165,27 @@ then
     elif [ $dataset == "cars" ]
     then
         lrs=(0.1) #0.01
-        weight_decays=(0.0)
+        weight_decays=(0.0005)
         scheduler=multistep5 # multistep
         max_epochs=300
         lr=0.1
-        weight_decay=0.0 # 0.0005
+        weight_decay=0.0005 # 0.0005
+    elif [ $dataset == "animal" ]
+    then
+        lrs=(0.1) #0.01
+        weight_decays=(0.0001)
+        scheduler=multistep3 # multistep
+        max_epochs=100
+        lr=0.1
+        weight_decay=0.0001 # 0.0005
+    elif [ $dataset == "food101" ]
+    then
+        lrs=(0.1) #0.01
+        weight_decays=(0.0001)
+        scheduler=multistep3 # multistep
+        max_epochs=90
+        lr=0.1
+        weight_decay=0.0001 # 0.0005
     else
         #lrs=(0.1 0.01 0.001)
         #weight_decays=(0.01 0.001 0.0001 0.00001)

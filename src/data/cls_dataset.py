@@ -14,6 +14,10 @@ from torchvision.transforms import transforms
 from src import constants
 from src.utils.utils import collate_fn, generate_noisy_labels, generate_noisy_labels_subgroup
 from src.data.cls.imagenet import ImageNet100, ImageNet
+from src.data.cls.animal import build_transform as build_transform_animal
+from src.data.cls.animal import build_dataset as build_dataset_animal
+from src.data.cls.food101 import build_transform as build_transform_food101
+from src.data.cls.food101 import build_dataset as build_dataset_food101
 from src.data.cls.cars import Cars
 
 from torch.utils.data.sampler import SubsetRandomSampler
@@ -83,6 +87,8 @@ class CLSDataModule(LightningDataModule):
         elif self.dataset == 'cars':
             Cars(root=self.data_dir, train=True, download=True)
             Cars(root=self.data_dir, train=False, download=True)
+        elif self.dataset in ['animal', 'food101']:
+            print(f'{self.dataset} is downloaded')
         else:
             raise NotImplementedError(f'dataset: {self.dataset} is not implemented')
 
@@ -273,6 +279,51 @@ class CLSDataModule(LightningDataModule):
             self.data_test = ImageNet(
                 self.data_dir, split='test', transform=self.test_transforms)
 
+        elif self.dataset == 'animal':
+            self.train_transforms = build_transform_animal(split='train')
+            self.test_transforms = build_transform_animal(split='test')
+
+            # default train: 1_024_892, val: 256_275
+            #if os.path.exists(split_path):
+            #    shuffled_indices = np.load(split_path)
+            #    train_indices = shuffled_indices['train']
+            #    train_num = len(train_indices)
+            #else:
+            #    shuffled_indices = np.arange(1_024_892)
+            #    np.random.shuffle(shuffled_indices)
+            #    train_num = int(1_024_892 * train_rate)
+            #    train_indices = shuffled_indices[:train_num]
+
+            trainset = build_dataset_animal(self.data_dir, split='train', transform=self.train_transforms)
+            self.data_val = build_dataset_animal(self.data_dir, split='test', transform=self.test_transforms)
+            self.data_test = build_dataset_animal(self.data_dir, split='test', transform=self.test_transforms)
+
+            train_num = len(trainset)
+            train_indices = np.arange(train_num)
+
+        elif self.dataset == 'food101':
+            self.train_transforms = build_transform_animal(split='train')
+            self.test_transforms = build_transform_animal(split='test')
+
+            # default train: 1_024_892, val: 256_275
+            #if os.path.exists(split_path):
+            #    shuffled_indices = np.load(split_path)
+            #    train_indices = shuffled_indices['train']
+            #    train_num = len(train_indices)
+            #else:
+            #    shuffled_indices = np.arange(1_024_892)
+            #    np.random.shuffle(shuffled_indices)
+            #    train_num = int(1_024_892 * train_rate)
+            #    train_indices = shuffled_indices[:train_num]
+
+            trainset = build_dataset_food101(self.data_dir, split='train', transform=self.train_transforms)
+            self.data_val = build_dataset_food101(self.data_dir, split='test', transform=self.test_transforms)
+            self.data_test = build_dataset_food101(self.data_dir, split='test', transform=self.test_transforms)
+
+            train_num = len(trainset)
+            train_indices = np.arange(train_num)
+
+
         elif self.dataset == 'cars':
             self.train_transforms = transforms.Compose([
                 transforms.RandomResizedCrop(224),
@@ -294,21 +345,26 @@ class CLSDataModule(LightningDataModule):
             if os.path.exists(split_path):
                 shuffled_indices = np.load(split_path)
                 train_indices = shuffled_indices['train']
-                val_indices = shuffled_indices['val']
+                #val_indices = shuffled_indices['val']
                 train_num = len(train_indices)
             else:
                 shuffled_indices = np.arange(8_144)
                 np.random.shuffle(shuffled_indices)
-                train_num = int(6_515 * train_rate)
-                train_indices = shuffled_indices[:train_num]
-                val_indices = shuffled_indices[6_515:]
-                np.savez(split_path, train=train_indices, val=val_indices)
+                train_num = int(8_144 * train_rate)
+                train_indices = shuffled_indices
+                np.savez(split_path, train=train_indices)
+                #train_num = int(6_515 * train_rate)
+                #train_indices = shuffled_indices[:train_num]
+                #val_indices = shuffled_indices[6_515:]
+                #np.savez(split_path, train=train_indices, val=val_indices)
 
             trainset = Cars(root=self.data_dir, train=True,
                             download=True, transform=self.train_transforms)
+            self.data_val = Cars(root=self.data_dir, train=False,
+                           download=True, transform=self.test_transforms)
             self.data_test = Cars(root=self.data_dir, train=False,
                            download=True, transform=self.test_transforms)
-            self.data_val = Subset(trainset, val_indices)
+            #self.data_val = Subset(trainset, val_indices)
         else:
             raise NotImplementedError(f'dataset: {self.dataset} is not implemented')
 
@@ -519,14 +575,14 @@ class CLSTrainWrapper(Dataset):
         # Define the mean and standard deviation of the Gaussian noise
         self.noise_scale = 10.0
 
-        if len(inclusion_indices) > 0:
-            assert np.array_equal(sorted(orig_indices), sorted(inclusion_indices))
+        #if len(inclusion_indices) > 0:
+        #    assert np.array_equal(sorted(orig_indices), sorted(inclusion_indices))
 
     def __getitem__(self, idx):
         img, label = self.dataset[idx]
         orig_idx = self.idx_to_orig_idx[idx]
 
-        if self.dataset_name in ['imagenet100', 'imagenet']:
+        if self.dataset_name in ['imagenet100', 'imagenet', 'cars']:
             if idx in self.noisy_idx_to_label:
                 if isinstance(self.noisy_idx_to_label, dict):
                     label = self.noisy_idx_to_label[idx]

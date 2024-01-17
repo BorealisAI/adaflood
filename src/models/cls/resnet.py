@@ -27,18 +27,23 @@ res_dict = {
 
 class ResBase(nn.Module):
     def __init__(self, name: str = "resnet18", num_classes: int = 10,
-                 d_model: int = 64, weights_path: str = None, pretrained=False):
+                 d_model: int = 64, weights_path: str = None, pretrained=False, smaller=False):
         super().__init__()
-        model_resnet = res_dict[name](d_model=d_model, pretrained=pretrained)
+        model_resnet = res_dict[name](d_model=d_model, pretrained=pretrained, smaller=smaller)
+        self.use_maxpool = True
         # feature extractor
+        self.smaller = smaller
         self.conv1 = model_resnet.conv1
         self.bn1 = model_resnet.bn1
         self.relu = model_resnet.relu
-        self.maxpool = model_resnet.maxpool
+        if self.use_maxpool:
+            self.maxpool = model_resnet.maxpool
         self.layer1 = model_resnet.layer1
         self.layer2 = model_resnet.layer2
         self.layer3 = model_resnet.layer3
-        self.layer4 = model_resnet.layer4
+        if not self.smaller:
+            self.layer4 = model_resnet.layer4
+
         self.avgpool = model_resnet.avgpool
         self.in_features = model_resnet.fc.in_features
         # classifier
@@ -59,11 +64,17 @@ class ResBase(nn.Module):
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
+
+        if self.use_maxpool:
+            x = self.maxpool(x)
+
         x = self.layer1(x)
         x = self.layer2(x)
         x = self.layer3(x)
-        x = self.layer4(x)
+        if not self.smaller:
+            x = self.layer4(x)
         x = self.avgpool(x)
+
         x = x.view(x.size(0), -1)
         x = self.fc(x)
         output_dict = {constants.LOGITS: x}

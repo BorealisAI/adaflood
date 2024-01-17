@@ -222,7 +222,7 @@ if __name__ == '__main__' :
 
     if args.data == 'cifar10':
         if args.alpha == 0.0:
-            lrs, weight_decays = [0.1], [0.0] #[0.0001] # [0.0]
+            lrs, weight_decays = [0.1], [0.0001] #[0.0001] # [0.0]
         else:
             lrs, weight_decays = [0.1], [0.0]
         #flood_levels = [0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5,

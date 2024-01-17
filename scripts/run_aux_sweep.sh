@@ -25,9 +25,16 @@ batch_size=16
 max_epochs=300
 d_model=64
 aux_num=10
+
+ckpt_path=null
 #ckpt_path=/home/whbae/meta-tpp-lightning/results/imagenet100_resnet34_alpha0.0_imb1.0_cls_aux-2_test/seed1/lr0.1_wd0.0001_mdim64/aux-1/checkpoints/epoch_0190.ckpt
-ckpt_path=/home/whbae/meta-tpp-lightning/results/imagenet100_resnet34_alpha0.3_imb1.0_cls_aux-2_test/seed1/lr0.1_wd0.0001_mdim64/aux-1/checkpoints/epoch_0050.ckpt
+#ckpt_path=/home/whbae/meta-tpp-lightning/results/imagenet100_resnet34_alpha0.3_imb1.0_cls_aux-2_test/seed1/lr0.1_wd0.0001_mdim64/aux-1/checkpoints/epoch_0050.ckpt
 #ckpt_path=/home/whbae/meta-tpp-lightning/results/imagenet100_resnet34_alpha0.6_imb1.0_cls_aux-2_test/seed1/lr0.1_wd0.0001_mdim64/aux-1/checkpoints/epoch_0050.ckpt
+#ckpt_path=/home/whbae/meta-tpp-lightning/results/cars_resnet34_alpha0.0_imb1.0_cls_final/seed1/lr0.1_wd0.0005/checkpoints/epoch_0249.ckpt
+#ckpt_path=/home/whbae/meta-tpp-lightning/results/cars_resnet34_alpha0.6_imb1.0_cls_final/seed1/lr0.1_wd0.0005/checkpoints/epoch_0130.ckpt
+#ckpt_path=/home/whbae/meta-tpp-lightning/results/cars_resnet34_alpha0.2_imb1.0_cls_final/seed1/lr0.1_wd0.0005/checkpoints/epoch_0287.ckpt
+#ckpt_path=/home/whbae/meta-tpp-lightning/results/animal_resnet18_alpha0.3_imb1.0_cls_final/seed1/lr0.1_wd0.0001/checkpoints/epoch_0097.ckpt
+ckpt_path=/home/whbae/meta-tpp-lightning/results/food101_resnet34_alpha0.3_imb1.0_cls_final/seed1/lr0.1_wd0.0001/checkpoints/epoch_0082.ckpt
 
 # Parsing arguments
 while getopts ":d:f:m:l:w:s:t:e:p:z:n:j:a:b:" flag; do

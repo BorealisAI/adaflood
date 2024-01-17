@@ -262,7 +262,7 @@ def train(cfg: DictConfig) -> Tuple[dict, dict]:
 
         tmp_trainer_cfg = copy.deepcopy(cfg.trainer)
         tmp_trainer_cfg['max_epochs'] = tuning_epochs
-        datamodule.batch_size = 32
+        datamodule.batch_size = 128
 
         tmp_callback_cfg = copy.deepcopy(cfg.callbacks)
         tmp_callback_cfg.model_checkpoint.dirpath = os.path.join(

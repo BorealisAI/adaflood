@@ -212,9 +212,11 @@ class ResNet(nn.Module):
         width_per_group: int = 64,
         replace_stride_with_dilation: Optional[List[bool]] = None,
         norm_layer: Optional[Callable[..., nn.Module]] = None,
-        d_model: int = 64
+        d_model: int = 64,
+        smaller: bool = False
     ) -> None:
         super().__init__()
+        self.smaller = smaller
         _log_api_usage_once(self)
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
@@ -242,7 +244,11 @@ class ResNet(nn.Module):
         self.layer3 = self._make_layer(block, d_model * 4, layers[2], stride=2, dilate=replace_stride_with_dilation[1])
         self.layer4 = self._make_layer(block, d_model * 8, layers[3], stride=2, dilate=replace_stride_with_dilation[2])
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(d_model * 8 * block.expansion, num_classes)
+
+        if not self.smaller:
+            self.fc = nn.Linear(d_model * 8 * block.expansion, num_classes)
+        else:
+            self.fc = nn.Linear(d_model * 4 * block.expansion, num_classes)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):

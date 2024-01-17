@@ -22,7 +22,7 @@ seed: 1
 
 model:
   net:
-    pretrained: True
+    smaller: True
 
 trainer:
   min_epochs: 25
