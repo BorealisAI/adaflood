@@ -159,7 +159,6 @@ configs/local/default.yaml
 *.sh
 
 .pre-commit-config.yaml
-.project-root
 .env.example
 .github
 
