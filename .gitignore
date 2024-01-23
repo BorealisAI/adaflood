@@ -162,3 +162,8 @@ configs/local/default.yaml
 .project-root
 .env.example
 .github
+
+# misc
+prev/*
+src/tmp/*
+
