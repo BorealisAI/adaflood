@@ -7,7 +7,7 @@ defaults:
   - data: tpp_dataset.yaml # mnist.yaml
   - model: thp_mix.yaml # intensity_free.yaml mnist.yaml
   - callbacks: default.yaml
-  - logger: null # done - set logger here or use command line (e.g. `python train.py logger=tensorboard`)
+  - logger: csv # done - set logger here or use command line (e.g. `python train.py logger=tensorboard`)
   - trainer: default.yaml # done
   - paths: default.yaml # done
   - extras: default.yaml # done
