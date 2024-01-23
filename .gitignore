@@ -166,4 +166,5 @@ configs/local/default.yaml
 # misc
 prev/*
 src/tmp/*
+results/*
 
