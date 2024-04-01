@@ -121,7 +121,7 @@ class TPPDataset(Dataset):
         # generate start indices for delta-future forecast
         delta = constants.DELTAS[dataset]
         num_forecasts = kwargs['num_forecasts'] # maximum number of forecasts per sequence
-        if num_forecasts > 0 and mode != 'train':
+        if num_forecasts > 0: # and mode != 'train':
             forecast_idx_path = os.path.join(
                 data_type_dir, 'forecast_indices', f'{dataset}_{mode}_{delta}_{num_forecasts}.npy')
 
