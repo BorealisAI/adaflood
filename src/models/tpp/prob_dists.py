@@ -16,23 +16,23 @@ def clamp_preserve_gradients(x, min, max):
 class Normal(TorchNormal):
     def log_cdf(self, x):
         # No numerically stable implementation of log CDF is available for normal distribution.
-        cdf = clamp_preserve_gradients(self.cdf(x), 1e-5, 1 - 1e-5)
+        cdf = clamp_preserve_gradients(self.cdf(x), 1e-7, 1 - 1e-7)
         return cdf.log()
 
     def log_survival_function(self, x):
         # No numerically stable implementation of log survival is available for normal distribution.
-        cdf = clamp_preserve_gradients(self.cdf(x), 1e-5, 1 - 1e-5)
+        cdf = clamp_preserve_gradients(self.cdf(x), 1e-7, 1 - 1e-7)
         return torch.log(1.0 - cdf)
 
 class LogNormal(TorchLogNormal):
     def log_cdf(self, x):
         # No numerically stable implementation of log CDF is available for normal distribution.
-        cdf = clamp_preserve_gradients(self.cdf(x), 1e-5, 1 - 1e-5)
+        cdf = clamp_preserve_gradients(self.cdf(x), 1e-7, 1 - 1e-7)
         return cdf.log()
 
     def log_survival_function(self, x):
         # No numerically stable implementation of log survival is available for normal distribution.
-        cdf = clamp_preserve_gradients(self.cdf(x), 1e-5, 1 - 1e-5)
+        cdf = clamp_preserve_gradients(self.cdf(x), 1e-7, 1 - 1e-7)
         return torch.log(1.0 - cdf)
 
 
@@ -92,7 +92,7 @@ class LogNormalMixture(nn.Module):
             self.hidden_dim, [self.hidden_dim], components * 3, activation='Tanh')
         self.vi_method = vi_method
 
-    def forward(self, histories, times, masks):
+    def forward(self, histories, times, masks, use_survival=True):
         #shared_data = SharedData.get_instance()
 
         if len(times.shape) <= 2:
@@ -116,8 +116,8 @@ class LogNormalMixture(nn.Module):
             log_weights + dist.log_prob(times), dim=-1, keepdim=True)
 
         # compute log survival
-        surv_dist = LogNormal(mu, sigma)
-        log_survival_x = surv_dist.log_survival_function(times)
+        dist = LogNormal(mu, sigma)
+        log_survival_x = dist.log_survival_function(times)
         log_survival_all = torch.logsumexp(log_weights + log_survival_x, dim=-1)
 
         # compute predictions
@@ -145,7 +145,99 @@ class LogNormalMixture(nn.Module):
             log_survival_all, dim=-1, index=last_event_idx.unsqueeze(-1)).squeeze(-1)
 
         output_dict = {
+            'event_ll': event_ll, 'surv_ll': log_survival_last, 'preds': preds, 'log_weights': log_weights, 'lognorm_dist': dist, 'mu': mu, 'sigma': sigma}
+        return output_dict
+
+    def compute_losses_and_preds(self, dist, log_weights, times, masks):
+        batch_size = times.shape[0]
+        times = times + 1e-12
+
+        log_probs = torch.logsumexp(
+            log_weights + dist.log_prob(times), dim=-1, keepdim=True)
+
+        # compute log survival
+        log_survival_x = dist.log_survival_function(times)
+        log_survival_all = torch.logsumexp(log_weights + log_survival_x, dim=-1)
+
+        # compute predictions
+        log_preds = torch.logsumexp(
+            log_weights + dist.loc + (dist.scale ** 2) / 2.0, dim=-1)
+        preds = torch.exp(log_preds) - 1e-12
+        preds = preds.unsqueeze(-1)
+
+        # if it is a latent variable, compute log-likelihood and predictions as the mean of the
+        # latent samples z_1, z_2, ... z_M
+        if self.vi_method is not None:
+            num_z_samples = log_probs.shape[0]
+            log_probs = torch.logsumexp(log_probs, dim=0) - torch.log(torch.tensor(num_z_samples))
+            log_survival_all = torch.logsumexp(log_survival_all, dim=0) - torch.log(torch.tensor(num_z_samples))
+            preds = torch.mean(preds, dim=0)
+
+        # compute log-likelihood (consider only the valid events based on masks)
+        last_event_idx = masks.squeeze(-1).sum(-1, keepdim=True).long().squeeze(-1) - 1 # (batch_size,)
+        masks_without_last = masks.clone()
+        masks_without_last[torch.arange(batch_size), last_event_idx] = 0
+        event_ll = (log_probs * masks_without_last).sum((1, 2)) # (B,)
+
+        # compute non event log-likelihood (consider only the last events)
+        log_survival_last = torch.gather(log_survival_all, dim=-1, index=last_event_idx.unsqueeze(-1)).squeeze(-1)
+
+        output_dict = {
             'event_ll': event_ll, 'surv_ll': log_survival_last, 'preds': preds}
+        return output_dict
+
+    def forecast(self, histories, times, masks, last_only=False):
+        '''
+        No computation for survival log-likelihood
+        '''
+        if len(times.shape) <= 2:
+            times = times.unsqueeze(-1)
+        if len(masks.shape) <= 2:
+            masks = masks.unsqueeze(-1)
+        batch_size = times.shape[0]
+
+        # if vi method is npml
+        if self.vi_method is not None:
+            times = times.unsqueeze(0)
+            times = times.repeat(histories.shape[0], 1, 1, 1)
+
+        # compute log probs for every event
+        times = times + 1e-12
+        weight_logits, mu, sigma_logits = self.decoder(histories).chunk(3, dim=-1)
+        sigma = F.softplus(sigma_logits)
+        log_weights = F.log_softmax(weight_logits, -1)
+        dist = LogNormal(mu, sigma)
+        log_probs = torch.logsumexp(
+            log_weights + dist.log_prob(times), dim=-1, keepdim=True)
+
+        # compute log survival
+        #dist = LogNormal(mu, sigma)
+        #log_survival_x = dist.log_survival_function(times)
+        #log_survival_all = torch.logsumexp(log_weights + log_survival_x, dim=-1)
+
+        # compute predictions
+        log_preds = torch.logsumexp(
+            log_weights + mu + (sigma ** 2) / 2.0, dim=-1)
+        preds = torch.exp(log_preds) - 1e-12
+        preds = preds.unsqueeze(-1)
+
+        # if it is a latent variable, compute log-likelihood and predictions as the mean of the
+        # latent samples z_1, z_2, ... z_M
+        #if self.vi_method is not None:
+        #    num_z_samples = log_probs.shape[0]
+        #    log_probs = torch.logsumexp(log_probs, dim=0) - torch.log(torch.tensor(num_z_samples))
+        #    log_survival_all = torch.logsumexp(log_survival_all, dim=0) - torch.log(torch.tensor(num_z_samples))
+        #    preds = torch.mean(preds, dim=0)
+
+        if last_only:
+            event_ll = log_probs[:,-1].squeeze(-1) # (1,)
+            preds = preds[:,-1].squeeze(-1) # (1,)
+        else:
+            event_ll = log_probs[masks.bool()] # (# valid events,)
+            preds = preds[masks.bool()]  # (# valid events,)
+
+        output_dict = {
+            'event_ll': event_ll, 'surv_ll': None, 'preds': preds, 'log_weights': None, 'lognorm_dist': None, 'mu': None, 'sigma': None}
         return output_dict
 
 

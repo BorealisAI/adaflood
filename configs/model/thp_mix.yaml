@@ -1,5 +1,9 @@
 _target_: src.models.tpp_module.TPPLitModule
 
+defaults:
+  - _self_
+  - criterion: tpp
+
 optimizer:
   _target_: torch.optim.Adam
   _partial_: True
@@ -11,6 +15,8 @@ optimizer:
 net:
   _target_: src.models.tpp.tpp_network.TransformerMix
   name: 'thp_mix'
+  dataset_name: ${data.datasets.dataset}
+  forecast_window: 0
   num_classes: ${data.datasets.num_classes}
   d_model: 64
   d_inner: 64
@@ -34,7 +40,6 @@ net:
 
   activation:
     name: tanh
-    #name: snake
     in_features: ${model.net.d_model}
     trainable: True
 

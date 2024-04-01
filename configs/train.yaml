@@ -12,10 +12,12 @@ defaults:
   - paths: default.yaml # done
   - extras: default.yaml # done
   - hydra: default.yaml # done
+  - diffuser: null #ddpm.yaml
 
   # experiment configs allow for version control of specific hyperparameters
   # e.g. best hyperparameters for given model and datamodule
   - experiment: null
+  - diff_experiment: null
 
   # config for hyperparameter optimization
   - hparams_search: null # tpp_optuna
@@ -28,13 +30,13 @@ defaults:
   - debug: null
 
 # task name, determines output directory path
-task_name: ${data.datasets.dataset}_${model.net.name}_${tag} # "train"
+task_name: ${data.datasets.dataset}_${model.net.name}_${tags[0]}_${tags[1]}
 
 # tags to help you identify your experiments
 # you can overwrite this in experiment configs
 # overwrite from command line with `python train.py tags="[first_tag, second_tag]"`
-tags: ["dev"]
-tag: "test"
+tags: ["dev", "test"]
+eval_tags: ["ddpm", "test"]
 
 # set False to skip model training
 train: True
@@ -48,6 +50,7 @@ compile: False
 
 # simply provide checkpoint path to resume training
 ckpt_path: null
+base_ckpt_path: null
 
 # seed for random number generators in pytorch, numpy and python.random
 seed: 1

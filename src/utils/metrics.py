@@ -20,18 +20,25 @@ class MaskedRMSE(Metric):
         self.add_state("preds", default=torch.tensor([]))
         self.add_state("targets", default=torch.tensor([]))
         self.add_state("masks", default=torch.tensor([]).bool())
-        self.add_state("total", default=torch.tensor(0.0), dist_reduce_fx="sum")
+        #self.add_state("total", default=torch.tensor(0.0), dist_reduce_fx="sum")
 
     def update(self, preds, targets, masks):
         self.preds = torch.cat((self.preds, preds))
         self.targets = torch.cat((self.targets, targets))
         self.masks = torch.cat((self.masks, masks))
-        self.total += masks.sum()
+        #self.total += masks.sum()
 
     def compute(self):
-        se = torch.tensor([torch.sum(pred[mask] - target[mask]) ** 2 for
+        if len(self.preds.shape) > 2:
+            self.preds = self.preds.reshape(-1, self.preds.shape[-1])
+        if len(self.targets.shape) > 2:
+            self.targets = self.targets.reshape(-1, self.targets.shape[-1])
+        if len(self.masks.shape) > 2:
+            self.masks = self.masks.reshape(-1, self.masks.shape[-1])
+
+        se = torch.tensor([torch.sum((pred[mask] - target[mask]) ** 2) for
               pred, target, mask in zip(self.preds, self.targets, self.masks)])
-        mse = torch.sum(se) / self.total
+        mse = torch.sum(se) / self.masks.sum()
         rmse = torch.sqrt(mse)
         return rmse
 

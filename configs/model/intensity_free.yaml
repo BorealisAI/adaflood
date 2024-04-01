@@ -1,5 +1,9 @@
 _target_: src.models.tpp_module.TPPLitModule
 
+defaults:
+  - _self_
+  - criterion: tpp # [tpp]
+
 optimizer:
   _target_: torch.optim.Adam
   _partial_: True
@@ -11,9 +15,13 @@ optimizer:
 net:
   _target_: src.models.tpp.tpp_network.IntensityFreePredictor
   name: 'if'
-  hidden_dim: 96
+  dataset_name: ${data.datasets.dataset}
+  forecast_window: 1
+  d_model: 64
   num_components: 8
   num_classes: ${data.datasets.num_classes}
   activation:
     name: tanh
-    in_features: ${model.net.hidden_dim}
+    in_features: ${model.net.d_model}
+
+

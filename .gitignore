@@ -166,4 +166,5 @@ configs/local/default.yaml
 prev/*
 src/tmp/*
 results/*
+.hydra/*
 

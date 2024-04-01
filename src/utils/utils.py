@@ -1,3 +1,5 @@
+import os
+import glob
 import warnings
 from importlib.util import find_spec
 from typing import Callable
@@ -110,3 +112,83 @@ def get_metric_value(metric_dict: dict, metric_name: str) -> float:
     log.info(f"Retrieved metric value! <{metric_name}={metric_value}>")
 
     return metric_value
+
+
+def redirect_base_ckpt_path(ckpt_path: str) -> str:
+    splits = ckpt_path.split('/')
+    base_ckpt_path = '/'.join(splits[:-3] + splits[-2:])
+    return base_ckpt_path
+
+def extract_best_ckpt_path(ckpt_path: str) -> str:
+    ckpt_dir = '/'.join(ckpt_path.split('/')[:-1])
+    ckpt_list = glob.glob(os.path.join(ckpt_dir, 'epoch_*.ckpt'))
+
+    latest_version = -1
+    # find the latest version
+    for ckpt_path_i in ckpt_list:
+        ckpt_name = ckpt_path_i.split('/')[-1].split('.')[0]
+        splits = ckpt_name.split('_')
+        if '-' in splits[-1]:
+            epoch_num, version = splits[-1].split('-')
+        else:
+            epoch_num = splits[-1]
+            version = None
+        #if len(splits) == 2:
+        #    _, epoch_num = splits
+        #    version = None
+        #elif len(splits) == 3:
+        #    _, epoch_num, version = splits
+        #else:
+        #    raise NotImplementedError("Extracting best checkpoint is wrong")
+
+        if version is not None:
+            version = int(version[1:]) # remove v
+            if version > latest_version:
+                latest_version = version
+
+    # filter checkpoints with the latest version
+    latest_ckpt_list = []
+    if latest_version == -1:
+        for ckpt_path_i in ckpt_list:
+            latest_ckpt_list.append(ckpt_path_i)
+    else:
+        for ckpt_path_i in ckpt_list:
+            ckpt_name = ckpt_path_i.split('/')[-1].split('.')[0]
+            splits = ckpt_name.split('_')
+            if '-' not in splits[-1]:
+                continue
+            #if len(splits) != 3:
+            #    continue
+            else:
+                epoch_num, version = splits[-1].split('-')
+                #_, epoch_num, version = splits
+                version = int(version[1:]) # remove v
+                if version == latest_version:
+                    latest_ckpt_list.append(ckpt_path_i)
+
+    best_ckpt_path = None
+    latest_epoch = -1
+    # find the latext epoch
+    for ckpt_path_i in latest_ckpt_list:
+        ckpt_name = ckpt_path_i.split('/')[-1].split('.')[0]
+        splits = ckpt_name.split('_')
+        if '-' in splits[-1]:
+            epoch_num, version = splits[-1].split('-')
+        else:
+            epoch_num = splits[-1]
+            version = None
+
+        epoch_num = int(epoch_num)
+        if epoch_num > latest_epoch:
+            latest_epoch = epoch_num
+            best_ckpt_path = ckpt_path_i
+
+    return best_ckpt_path
+
+
+def extract_n_samples(input_dict, n=1):
+    new_input_dict = {}
+    for key in input_dict:
+        new_input_dict[key] = input_dict[key][:n]
+    return new_input_dict
+

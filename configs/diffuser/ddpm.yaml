@@ -1,0 +1,7 @@
+_target_: src.models.diffusion_module.DiffusionLitModule
+_partial_: True
+config:
+  _target_: src.models.diffuser.configs.vp.ddpm.get_config
+output_dir: ${paths.output_dir}
+
+

@@ -1,4 +1,4 @@
-dataset: 'taxi_times_jan_feb'
+dataset: 'taxi'
 num_classes: 1
 
 # so_fold1: 22, mooc: 97, reddit: 984, wiki: 7628, 8226

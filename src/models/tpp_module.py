@@ -26,6 +26,7 @@ class TPPLitModule(LightningModule):
     def __init__(
         self,
         net: torch.nn.Module,
+        criterion: torch.nn.Module,
         optimizer: torch.optim.Optimizer,
         scheduler: torch.optim.lr_scheduler=None,
     ):
@@ -35,6 +36,8 @@ class TPPLitModule(LightningModule):
         # also ensures init params will be stored in ckpt
         self.save_hyperparameters(logger=False, ignore=['net'])
         self.net = net
+        self.criterion = criterion
+        self.is_forecast = self.net.forecast_window > 0
 
         # for averaging nll across batches
         self.train_nll = MeanMetricWithCount()
@@ -53,7 +56,17 @@ class TPPLitModule(LightningModule):
 
         # for tracking best so far validation nll and rmse
         self.val_nll_best = MinMetric()
+        self.val_rmse_with_nll_best = MinMetric()
+        self.val_acc_with_nll_best = MinMetric()
+
         self.val_rmse_best = MinMetric()
+        self.val_nll_with_rmse_best = MinMetric()
+        self.val_acc_with_rmse_best = MinMetric()
+
+        # for tracking best so far test nll and rmse
+        self.test_nll_best = MinMetric()
+        self.test_rmse_best = MinMetric()
+        self.test_acc_best = MinMetric()
 
         self.no_decay_layer_keywords = ['cross_attn_stack']
 
@@ -62,33 +75,33 @@ class TPPLitModule(LightningModule):
         # so it's worth to make sure validation metrics don't store results from these checks
         self.val_nll.reset()
         self.val_nll_best.reset()
+        self.val_rmse_with_nll_best.reset()
+        self.val_acc_with_nll_best.reset()
+
         self.val_rmse.reset()
         self.val_rmse_best.reset()
+        self.val_nll_with_rmse_best.reset()
+        self.val_acc_with_rmse_best.reset()
+
         self.val_acc.reset()
+
+    def on_test_epoch_start(self):
+        self.test_nll.reset()
+        self.test_nll_best.reset()
+
+        self.test_rmse.reset()
+        self.test_rmse_best.reset()
+
+        self.test_acc.reset()
+        self.test_acc_best.reset()
 
     def model_step(self, input_dict):
         output_dict = self.net(**input_dict)
+        if self.is_forecast:
+            return output_dict
 
-        # compute loss
-        event_ll, surv_ll, kl = (
-            output_dict[constants.EVENT_LL], output_dict[constants.SURV_LL], output_dict[constants.KL])
-        loss = -torch.sum(event_ll + surv_ll)
-        if kl is not None:
-            loss += kl
-
-        weight_decay = self.hparams.optimizer.keywords['weight_decay']
-        if weight_decay != 0.0 and self.net.training:
-            weight_squared = 0.
-            for name, params in self.net.named_parameters():
-                for exclude_layer_keyword in self.no_decay_layer_keywords:
-                    if exclude_layer_keyword in name:
-                        break
-                else:
-                    weight_squared += torch.sum(params ** 2)
-            weight_squared *= 0.5
-            loss += weight_decay * weight_squared
-
-        output_dict[constants.LOSS] = loss
+        loss_dict = self.criterion(output_dict, input_dict)
+        output_dict.update(loss_dict)
         return output_dict
 
     def training_step(self, input_dict, batch_idx):
@@ -134,41 +147,87 @@ class TPPLitModule(LightningModule):
 
     def on_validation_epoch_end(self):
         val_nll = self.val_nll.compute()
-        self.val_nll_best(val_nll)
+        self.val_nll_best.update(val_nll)
+        val_nll_best = self.val_nll_best.compute()
         self.log("val/nll_best", self.val_nll_best.compute(), sync_dist=True, prog_bar=True)
 
         val_rmse = self.val_rmse.compute()
-        self.val_rmse_best(val_rmse)
+        self.val_rmse_best.update(val_rmse)
+        val_rmse_best = self.val_rmse_best.compute()
         self.log("val/rmse_best", self.val_rmse_best.compute(), sync_dist=True, prog_bar=True)
 
+        val_acc = self.val_acc.compute()
+
+        if val_nll == val_nll_best:
+            self.val_rmse_with_nll_best.reset()
+            self.val_rmse_with_nll_best(val_rmse)
+            self.log("val/rmse_with_nll_best", self.val_rmse_with_nll_best.compute(), sync_dist=True, prog_bar=True)
+            self.val_acc_with_nll_best.reset()
+            self.val_acc_with_nll_best(val_acc)
+            self.log("val/acc_with_nll_best", self.val_acc_with_nll_best.compute(), sync_dist=True, prog_bar=True)
+        else:
+            self.log("val/rmse_with_nll_best", self.val_rmse_with_nll_best.compute(), sync_dist=True, prog_bar=True)
+            self.log("val/acc_with_nll_best", self.val_acc_with_nll_best.compute(), sync_dist=True, prog_bar=True)
+
+        #if val_rmse < prev_val_rmse_best:
+        if val_rmse == val_rmse_best:
+            self.val_nll_with_rmse_best.reset()
+            self.val_nll_with_rmse_best(val_nll)
+            self.log("val/nll_with_rmse_best", self.val_nll_with_rmse_best.compute(), sync_dist=True, prog_bar=True)
+            self.val_acc_with_rmse_best.reset()
+            self.val_acc_with_rmse_best(val_acc)
+            self.log("val/acc_with_rmse_best", self.val_acc_with_rmse_best.compute(), sync_dist=True, prog_bar=True)
+        else:
+            self.log("val/nll_with_rmse_best", self.val_nll_with_rmse_best.compute(), sync_dist=True, prog_bar=True)
+            self.log("val/acc_with_rmse_best", self.val_acc_with_rmse_best.compute(), sync_dist=True, prog_bar=True)
 
     def test_step(self, input_dict, batch_idx):
         output_dict = self.model_step(input_dict)
+        if self.is_forecast:
+            nlls = output_dict[constants.NLL]
+            nll, count = nlls.sum(), nlls.numel()
+            #print(f'event size: {nlls.shape[0]}')
+            self.test_nll.update(nll, count)
+            self.log("test/nll", self.test_nll, on_step=True, on_epoch=True, prog_bar=True)
+            #print(f'test nll: {self.test_nll.compute()}')
 
-        # update nll
-        nll = output_dict[constants.LOSS]
-        masks = input_dict[constants.MASKS].bool()
-        count = masks.sum()
-        self.test_nll(nll, count)
-        self.log("test/nll", self.test_nll, on_step=False, on_epoch=True, prog_bar=True)
+            times = output_dict[constants.TIMES]
+            time_preds = output_dict[constants.TIME_PREDS]
+            self.test_rmse.update(
+                time_preds, times, torch.ones_like(times).bool())
+            self.log("test/rmse", self.test_rmse, on_step=True, on_epoch=True, prog_bar=True)
+            #print(f'test rsme: {self.test_rmse.compute()}')
 
-        # update rmse
-        times = input_dict[constants.TIMES]
-        time_preds = output_dict[constants.TIME_PREDS]
+            class_preds = output_dict[constants.CLS_PREDS]
+            if class_preds is not None:
+                marks = output_dict[constants.MARKS]
+                self.test_acc.update(class_preds, marks, torch.ones_like(marks).bool())
+                self.log("test/acc", self.test_acc, on_step=True, on_epoch=True, prog_bar=True)
+                print(f'test acc: {self.test_acc.compute()}')
+        else:
+            # update nll
+            nll = output_dict[constants.LOSS]
+            masks = input_dict[constants.MASKS].bool()
+            count = masks.sum()
+            self.test_nll.update(nll, count)
+            self.log("test/nll", self.test_nll, on_step=False, on_epoch=True, prog_bar=True)
 
-        start_idx = times.shape[1] - time_preds.shape[1]
-        self.test_rmse(time_preds.squeeze(-1), times[:,start_idx:].squeeze(-1),
-                       masks[:,start_idx:].squeeze(-1))
-        self.log("test/rmse", self.test_rmse, on_step=False, on_epoch=True, prog_bar=True)
+            # update rmse
+            times = input_dict[constants.TIMES]
+            time_preds = output_dict[constants.TIME_PREDS]
 
-        # update accuracy
-        class_preds = output_dict[constants.CLS_PREDS]
-        if class_preds is not None:
-            marks = input_dict[constants.MARKS]
-            self.test_acc(class_preds, marks[:,start_idx:].squeeze(-1),
-                         masks[:,start_idx:].squeeze(-1))
-            self.log("test/acc", self.test_acc, on_step=False, on_epoch=True, prog_bar=True)
+            start_idx = times.shape[1] - time_preds.shape[1]
+            self.test_rmse.update(
+                time_preds.squeeze(-1), times[:,start_idx:].squeeze(-1), masks[:,start_idx:].squeeze(-1))
+            self.log("test/rmse", self.test_rmse, on_step=False, on_epoch=True, prog_bar=True)
 
+            # update accuracy
+            class_preds = output_dict[constants.CLS_PREDS]
+            if class_preds is not None:
+                marks = input_dict[constants.MARKS]
+                self.test_acc.update(class_preds, marks[:,start_idx:].squeeze(-1),
+                              masks[:,start_idx:].squeeze(-1))
+                self.log("test/acc", self.test_acc, on_step=False, on_epoch=True, prog_bar=True)
 
     def on_test_epoch_end(self):
         pass
@@ -180,9 +239,23 @@ class TPPLitModule(LightningModule):
         Examples:
             https://lightning.ai/docs/pytorch/latest/common/lightning_module.html#configure-optimizers
         """
-        optimizer = self.hparams.optimizer([
-            {'params': self.net.parameters(), 'weight_decay': 0.0}])
+        # exclude pre-defined layers from weight_decay
+        wd_parameters = []
+        no_wd_parameters = []
+        for name, params in self.net.named_parameters():
+            for exclude_layer_keyword in self.no_decay_layer_keywords:
+                if exclude_layer_keyword in name:
+                    no_wd_parameters.append(params)
+                    break
+            else:
+                wd_parameters.append(params)
 
+        weight_decay = self.hparams.optimizer.keywords['weight_decay']
+        params = [
+            {'params': wd_parameters, 'weight_decay': weight_decay},
+            {'params': no_wd_parameters, 'weight_decay': 0.0}]
+
+        optimizer = self.hparams.optimizer(params)
 
         if self.hparams.scheduler is not None:
             scheduler = self.hparams.scheduler(optimizer=optimizer)

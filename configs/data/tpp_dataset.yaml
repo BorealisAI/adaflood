@@ -8,6 +8,7 @@ data_dir: ${paths.data_dir} # /shared-data/TPP
 batch_size: 16
 num_workers: 4
 pin_memory: False
+debug: False
 
 train_rate: 1.0
 eval_rate: 1.0
@@ -16,4 +17,7 @@ seq_rate: 1.0
 missing_rate: 0.0
 use_mark: True
 run_bootstrap: False
+
+delta: 1
+num_forecasts: 32
 

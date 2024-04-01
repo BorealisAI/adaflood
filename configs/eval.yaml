@@ -4,19 +4,47 @@ defaults:
   - _self_
   - data: tpp_dataset.yaml # mnist.yaml # choose datamodule with `test_dataloader()` for evaluation
   - model: thp_mix.yaml # thp_mix.yaml intensity_free.yaml mnist.yaml
-  - logger: null
+  - callbacks: null
+  - logger: csv
   - trainer: default.yaml
   - paths: default.yaml
   - extras: default.yaml
   - hydra: default.yaml
+  - diffuser: null #ddpm.yaml
 
-task_name: ${data.datasets.dataset}_${model.net.name}_${tag}/eval # "eval"
+  # experiment configs allow for version control of specific hyperparameters
+  # e.g. best hyperparameters for given model and datamodule
+  - experiment: null
+  - diff_experiment: null
 
-tags: ["dev"]
-tag: "final"
+  # config for hyperparameter optimization
+  - hparams_search: null # tpp_optuna
+
+  # optional local config for machine/user specific settings
+  # it's optional since it doesn't need to exist and is excluded from version control
+  - optional local: default.yaml
+
+  # debugging config (enable through command line, e.g. `python train.py debug=default)
+  - debug: null
+
+
+task_name: ${data.datasets.dataset}_${model.net.name}_${tags[0]}_${tags[1]}
+tags: ["dev", "test"]
+eval_tags: ["base", "test"]
 
 # passing checkpoint path is necessary for evaluation
-ckpt_path: ${paths.ckpt_dir}/${data.datasets.dataset}_${model.net.name}/checkpoint/best_eval/rmse/ckpt_engine.pth.tar
+ckpt_name: best
+ckpt_path: ${paths.output_dir}/checkpoints/${ckpt_name}.ckpt
+
+  # set False to skip model training
+train: False
+
+# evaluate on test set, using best model weights achieved during training
+# lightning chooses best weights based on the metric specified in checkpoint callback
+test: True
+
+# compile model for faster training with pytorch 2.0
+compile: False
 
 # seed for random number generators in pytorch, numpy and python.random
 seed: 1

@@ -1,0 +1,4 @@
+_target_: src.models.diffusion_module.DiffusionLitModule
+_partial_: True
+output_dir: ${paths.output_dir}
+
