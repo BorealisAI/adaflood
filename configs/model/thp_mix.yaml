@@ -16,7 +16,7 @@ net:
   _target_: src.models.tpp.tpp_network.TransformerMix
   name: 'thp_mix'
   dataset_name: ${data.datasets.dataset}
-  forecast_window: 0
+  forecast_window: ${data.forecast_window}
   num_classes: ${data.datasets.num_classes}
   d_model: 64
   d_inner: 64

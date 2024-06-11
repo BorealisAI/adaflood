@@ -34,6 +34,7 @@ PROB_DIST = "prob_dist"
 LOGNORM_DIST = "lognorm_dist"
 DIST_MU = "dist_mu"
 DIST_SIGMA = "dist_sigma"
+NLLS = "nlls"
 
 # Evaluatation
 LOSS = "loss"

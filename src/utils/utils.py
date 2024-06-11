@@ -124,6 +124,7 @@ def extract_best_ckpt_path(ckpt_path: str) -> str:
     ckpt_list = glob.glob(os.path.join(ckpt_dir, 'epoch_*.ckpt'))
 
     latest_version = -1
+    largest_epoch_num = -1
     # find the latest version
     for ckpt_path_i in ckpt_list:
         ckpt_name = ckpt_path_i.split('/')[-1].split('.')[0]
@@ -133,6 +134,8 @@ def extract_best_ckpt_path(ckpt_path: str) -> str:
         else:
             epoch_num = splits[-1]
             version = None
+
+        epoch_num = int(epoch_num)
         #if len(splits) == 2:
         #    _, epoch_num = splits
         #    version = None
@@ -141,10 +144,13 @@ def extract_best_ckpt_path(ckpt_path: str) -> str:
         #else:
         #    raise NotImplementedError("Extracting best checkpoint is wrong")
 
-        if version is not None:
-            version = int(version[1:]) # remove v
-            if version > latest_version:
-                latest_version = version
+        if epoch_num >= largest_epoch_num:
+            largest_epoch_num = epoch_num
+
+            if version is not None:
+                version = int(version[1:]) # remove v
+                if version > latest_version:
+                    latest_version = version
 
     # filter checkpoints with the latest version
     latest_ckpt_list = []

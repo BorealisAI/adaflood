@@ -11,15 +11,16 @@ from lightning import LightningModule
 from torchmetrics import MinMetric, MaxMetric, MeanMetric
 from torchmetrics.classification.accuracy import Accuracy
 from ml_collections.config_dict import config_dict
+from omegaconf import DictConfig
 from lightning.pytorch.core.optimizer import LightningOptimizer
 
 from src import utils
 from src import constants
-from src.utils.metrics import MeanMetricWithCount, MaskedRMSE, MaskedAccuracy
+from src.utils.metrics import MeanMetricWithCount, MaskedRMSE, MaskedAccuracy, MaskedNLL
 from src.utils.utils import extract_n_samples
 
 # Keep the import below for registering all model definitions
-from src.models.diffuser.models import ddpm, ncsnv2 #, ncsnpp
+from src.models.diffuser.models import ddpm, tddpm, ncsnv2 #, ncsnpp
 from src.models.diffuser import losses, sampling, sde_lib, datasets
 from src.models.diffuser.sampling import get_predictor, get_corrector
 from src.models.diffuser.models import utils as mutils
@@ -48,6 +49,7 @@ class DiffusionLitModule(LightningModule):
     def __init__(
         self,
         config: config_dict.ConfigDict,
+        override_config: DictConfig,
         output_dir: str,
         ar_net: torch.nn.Module
     ):
@@ -57,9 +59,13 @@ class DiffusionLitModule(LightningModule):
         # also ensures init params will be stored in ckpt
         self.automatic_optimization = False
         self.save_hyperparameters(logger=False, ignore=['config', 'ar_net'])
+
+        #config.update(override_config) - it is overriden before initialized
         self.config = config
         self.ar_net = ar_net
         self.ar_net.eval()
+        for params in self.ar_net.parameters():
+            params.requires_grad_(False)
 
         # adjust the input dimension aligning with latent variable
         input_height = self.ar_net.embedding.weight.shape[-1]
@@ -135,10 +141,11 @@ class DiffusionLitModule(LightningModule):
                           self.config.data.num_channels,
                           self.config.data.height,
                           self.config.data.width)
-        self.sampling_fn = sampling.get_sampling_fn(
-            self.config, self.sde, sampling_shape, self.inverse_scaler, sampling_eps)
+        #self.sampling_fn = sampling.get_sampling_fn(
+        #    self.config, self.sde, sampling_shape, self.inverse_scaler, sampling_eps)
 
         num_train_steps = self.config.training.n_iters
+        self.num_samples = 1
 
         #log.info("Starting training loop at step %d." % (initial_step,))
 
@@ -148,25 +155,26 @@ class DiffusionLitModule(LightningModule):
         self.test_loss = MeanMetric()
 
         # for averaging nll across batches
-        self.test_nll = MeanMetricWithCount()
+        self.test_nll = MaskedNLL(self.num_samples) # MeanMetricWithCount(self.num_samples)
 
         # for averaging rmse across batches
-        self.test_rmse = MaskedRMSE()
+        self.test_rmse = MaskedRMSE(self.num_samples)
 
         # for averaging accuracy across batches
-        self.test_acc = MaskedAccuracy()
+        self.test_acc = MaskedAccuracy(self.num_samples)
 
         # for tracking best so far test nll and rmse
         self.test_nll_best = MinMetric()
         self.test_rmse_best = MinMetric()
         self.test_acc_best = MinMetric()
 
-
         self.val_gen_min = MeanMetric()
         self.val_gen_max = MeanMetric()
 
 
     def on_train_start(self):
+        self.train_loss.reset()
+
         self.val_loss.reset()
         self.val_gen_min.reset()
         self.val_gen_max.reset()
@@ -202,7 +210,7 @@ class DiffusionLitModule(LightningModule):
         logging.info('EMA is successfully loaded and removed from checkpoint')
 
 
-    def inference_preprocess(self, histories, input_dict):
+    def preprocess(self, histories, input_dict, forecast):
         times = input_dict[constants.TIMES]
         masks = input_dict[constants.MASKS]
         marks = input_dict[constants.MARKS]
@@ -224,13 +232,20 @@ class DiffusionLitModule(LightningModule):
             marks_i = []
 
             valid_index_i = index_i[index_i >= 0]
+            if not forecast:
+                valid_index_i = np.random.choice(valid_index_i.detach().cpu().numpy(), size=4, replace=False)
 
             for start_index in valid_index_i: # start_idx is included in the forecast_window
-                zeros = torch.zeros((feat_dim, forecast_window)).to(histories.device)
-                history_len = self.config.data.width - forecast_window
-                valid_histories = histories[i][:,start_index-history_len-1:start_index-1]
-                extended_histories = torch.cat((valid_histories, zeros), dim=-1) # D x width
-                histories_i.append(extended_histories) # num_indices x D x width
+                if not forecast:
+                    history_len = self.config.data.width - forecast_window
+                    valid_histories = histories[i][:,start_index-history_len-1:start_index+forecast_window-1]
+                    histories_i.append(valid_histories)
+                else:
+                    zeros = torch.zeros((feat_dim, forecast_window)).to(histories.device)
+                    history_len = self.config.data.width - forecast_window
+                    valid_histories = histories[i][:,start_index-history_len-1:start_index-1]
+                    extended_histories = torch.cat((valid_histories, zeros), dim=-1) # D x width
+                    histories_i.append(extended_histories) # num_indices x D x width
 
                 new_mask_i = torch.zeros_like(masks[i][start_index-history_len:start_index+forecast_window])
                 new_mask_i[-forecast_window:] = 1 # e.g. [0, 0, 0, 0, 1, 1, 1, 1]: we compute metrics for event only in forecast window
@@ -245,12 +260,12 @@ class DiffusionLitModule(LightningModule):
             mask_batch.append(torch.stack(masks_i))
             mark_batch.append(torch.stack(marks_i))
 
-        history_batch = torch.cat(history_batch) # (N, D, T)
+        history_batch = torch.cat(history_batch).unsqueeze(1) # (N, 1, D, T) where T = width
         time_batch = torch.cat(time_batch) # (N, T, 1)
         mask_batch = torch.cat(mask_batch) # (N, T, 1)
         mark_batch = torch.cat(mark_batch) # (N, T, 1)
-        assert history_batch.shape[1] == feat_dim
-        assert history_batch.shape[2] == self.config.data.width
+        assert history_batch.shape[2] == feat_dim
+        assert history_batch.shape[3] == self.config.data.width
         assert time_batch.shape[0] == history_batch.shape[0]
         assert time_batch.shape[1] == history_batch.shape[-1]
 
@@ -258,34 +273,36 @@ class DiffusionLitModule(LightningModule):
         return batch
 
 
-    def train_preprocess(self, histories, masks):
-        batch_size = histories.shape[0] # B
-        feat_dim = histories.shape[1] # D
+    #def train_preprocess(self, histories, masks):
+    #    batch_size = histories.shape[0] # B
+    #    feat_dim = histories.shape[1] # D
 
-        diff_window_size = self.config.data.width
-        histories = histories.unsqueeze(1)
+    #    diff_window_size = self.config.data.width
+    #    histories = histories.unsqueeze(1)
 
-        # 1. compute max index for each sequence
-        # 2. randomly select valid index to match to D
-        # 3. create a new batch
-        history_batch = []
-        for i in range(batch_size):
-            mask = masks[i]
-            num_event = mask.sum().item()
+    #    # 1. compute max index for each sequence
+    #    # 2. randomly select valid index to match to D
+    #    # 3. create a new batch
+    #    history_batch = []
+    #    for i in range(batch_size):
+    #        mask = masks[i]
+    #        num_event = mask.sum().item()
 
-            # 0-th histories is for 1-st pred -> t-th is for t+1-th pred
-            # -> valid: 0 ~ num_event-1 since num_event-1-th history is for num_event-th pred
-            if num_event-1-diff_window_size <= 0:
-                #log.warn(f'num_event - 1 < diff_window_size')
-                continue
+    #        # 0-th histories is for 1-st pred -> t-th is for t+1-th pred
+    #        # -> valid: 0 ~ num_event-1 since num_event-1-th history is for num_event-th pred
+    #        if num_event-1-diff_window_size <= 0:
+    #            #log.warn(f'num_event - 1 < diff_window_size')
+    #            continue
 
-            start_idx = int(np.random.choice(
-                np.arange(0, num_event-1-diff_window_size, 1), size=1).item())
+    #        start_indices = np.random.choice(
+    #            np.arange(0, num_event-1-diff_window_size, 1), size=3, replace=False)
 
-            history_batch.append(histories[i,:,:,start_idx:start_idx+diff_window_size])
+    #        for start_idx in start_indices:
+    #            start_idx = int(start_idx.item())
+    #            history_batch.append(histories[i,:,:,start_idx:start_idx+diff_window_size])
 
-        history_batch = torch.stack(history_batch, dim=0)
-        return history_batch
+    #    history_batch = torch.stack(history_batch, dim=0)
+    #    return history_batch
 
     #def on_after_backward(self) -> None:
     #    print("on_after_backward enter")
@@ -297,30 +314,50 @@ class DiffusionLitModule(LightningModule):
     def encode(self, input_dict, forecast=False):
         with torch.no_grad():
             output_dict = self.ar_net.encode(**input_dict)
-        histories = output_dict[constants.HISTORIES].transpose(1, 2) # B x T x D -> B x D x T
+        histories = output_dict[constants.HISTORIES].transpose(1, 2).detach() # B x T x D -> B x D x T
+        #std = torch.std(histories)
+        #histories = histories / std
 
         if constants.INDICES in input_dict:
             indices = input_dict[constants.INDICES]
         else:
             indices = []
 
-        if forecast and len(indices) > 0:
-            batch = self.inference_preprocess(histories, input_dict)
+        if forecast:
+            batch = self.preprocess(histories, input_dict, forecast=forecast)
         else:
-            batch = self.train_preprocess(histories, input_dict[constants.MASKS])
+            batch = self.preprocess(histories, input_dict, forecast=forecast)
         return batch
 
-    def generate_samples(self, input_dict, clip=True): # This will be shared between val and test. For val, we have self.ema from training but for test, we need to load a checkpoint for ema check line 276 - 285 in run_lib.py
+        #if not(forecast and len(indices) > 0): # if it is training
+        #    (history_batch, time_batch, mask_batch, mark_batch) = batch
+        #    batch_size = histories.shape[0]
+        #    candidate_size = history_batch.shape[0]
+        #    selected_indices = np.random.choice(candidate_size, size=batch_size * 3, replace=False)
+        #    batch = history_batch[selected_indices]
+
+        #if forecast and len(indices) > 0:
+        #    batch = self.inference_preprocess(histories, input_dict)
+        #else:
+        #    batch = self.train_preprocess(histories, input_dict[constants.MASKS])
+        #import IPython; IPython.embed()
+
+    def generate_samples(self, input_dict, num_samples, clip=False):
+        # This will be shared between val and test. For val, we have self.ema from training but for test, we need to load a checkpoint for ema check line 276 - 285 in run_lib.py
         self.ema.store(self.score_model.parameters()) # store score_model to ema backup
         self.ema.copy_to(self.score_model.parameters()) # copy ema main params to score_model
 
+        num_resample = 15
         predictor = get_predictor(self.config.sampling.predictor.lower())
         corrector = get_corrector(self.config.sampling.corrector.lower())
+        print(f'Using predictor: {self.config.sampling.predictor.lower()}')
+        print(f'Using corrector: {self.config.sampling.corrector.lower()}')
+        print(f'Number of resample: {num_resample}')
 
         pc_inpainter = get_pc_inpainter(
             self.sde, predictor, corrector, inverse_scaler=self.inverse_scaler, snr=self.config.sampling.snr,
             n_steps=1, probability_flow=False, continuous=self.config.training.continuous,
-            denoise=True, eps=1e-5, num_resample=1)
+            denoise=True, eps=1e-3, num_resample=num_resample)
 
         forecast_window = self.ar_net.forecast_window # add zeros for forecast_window
         # Collect a batch using starting indices
@@ -332,20 +369,40 @@ class DiffusionLitModule(LightningModule):
 
         # Generate samples on forecast windows
         inpainted_batch = []
+        new_time_batch = []
+        new_mask_batch = []
+        new_mark_batch = []
         start_time = time.time()
         for r in range(num_sampling_rounds):
             if r > 0: break
-            #import IPython; IPython.embed(); exit()
             print(f'inpainting {r+1}/{num_sampling_rounds}')
-            batch_i = history_batch[r*mini_batch_size:(r+1)*mini_batch_size].unsqueeze(1) # (mini_batch_size, 1, D, T)
+            batch_i = history_batch[r*mini_batch_size:(r+1)*mini_batch_size] # (miniB, 1, D, T)
+            if batch_i.shape[0] <= 0: break
+
+            batch_i = batch_i.repeat(num_samples, *[1] * len(batch_i.shape)).reshape(-1, *batch_i.shape[1:]) # (miniB, 1, D, T) -> (S, miniB, 1, D, T) -> (S * miniB, 1, D, T)
+
             mask = torch.ones_like(batch_i)
             mask[:, :, :, -forecast_window:] = 0.
+
             inpainted_batch_i = pc_inpainter(
-                self.score_model, self.scaler(batch_i), mask)
+                self.score_model, self.scaler(batch_i), mask, ratio=0.02) # 1000 -> 1000 * ratio
             print(f'Min: {inpainted_batch_i.min()}, Max: {inpainted_batch_i.max()}')
+
             if clip:
                 inpainted_batch_i = torch.clamp(inpainted_batch_i, min=-1.0, max=1.0)
             inpainted_batch.append(inpainted_batch_i.squeeze(1))
+
+            time_minibatch = time_batch[r*mini_batch_size:(r+1)*mini_batch_size].repeat(
+                num_samples, *[1] * len(time_batch.shape)).reshape(-1, *time_batch.shape[1:])
+            new_time_batch.append(time_minibatch)
+
+            mask_minibatch = mask_batch[r*mini_batch_size:(r+1)*mini_batch_size].repeat(
+                num_samples, *[1] * len(mask_batch.shape)).reshape(-1, *mask_batch.shape[1:])
+            new_mask_batch.append(mask_minibatch)
+
+            mark_minibatch = mark_batch[r*mini_batch_size:(r+1)*mini_batch_size].repeat(
+                num_samples, *[1] * len(mark_batch.shape)).reshape(-1, *mark_batch.shape[1:])
+            new_mark_batch.append(mark_minibatch)
 
         end_time = time.time()
         print(f'inpainting took {end_time - start_time}')
@@ -353,13 +410,15 @@ class DiffusionLitModule(LightningModule):
         inpainted_batch = torch.cat(inpainted_batch).transpose(1, 2) # (B, D, T) -> (B, T, D)
         self.ema.restore(self.score_model.parameters()) # restore ema backup params to score_model
 
-        #import IPython; IPython.embed()
-        # DEBUG: for debugging purpose
-        time_batch = time_batch[:inpainted_batch.shape[0]]
-        mask_batch = mask_batch[:inpainted_batch.shape[0]]
-        mark_batch = mark_batch[:inpainted_batch.shape[0]]
+        new_time_batch = torch.cat(new_time_batch)
+        new_mask_batch = torch.cat(new_mask_batch)
+        new_mark_batch = torch.cat(new_mark_batch)
 
-        batch = (inpainted_batch, time_batch, mask_batch, mark_batch)
+        #time_batch = time_batch[:inpainted_batch.shape[0]]
+        #mask_batch = mask_batch[:inpainted_batch.shape[0]]
+        #mark_batch = mark_batch[:inpainted_batch.shape[0]]
+
+        batch = (inpainted_batch, new_time_batch, new_mask_batch, new_mark_batch) # time_batch, mask_batch, mark_batch)
         return batch
 
 
@@ -458,24 +517,48 @@ class DiffusionLitModule(LightningModule):
 
 
     def training_step(self, input_dict, batch_idx):
-        batch = self.encode(input_dict)
-        loss = self.train_step_fn(self.state, batch, self)
+        batch, _, _, _ = self.encode(input_dict, forecast=False)
+        #print(f'train {batch_idx}: {batch.shape}')
+
+        #val_loss = self.eval_step_fn(self.state, batch)
+        #print(f'train val loss {batch_idx}: {val_loss}')
+
+        # TODO: create a condition and input as random noise.
+        # 1) Their concat will be an input for diffusion
+        # 2) Their cross-attention
+        forecast_window = self.ar_net.forecast_window # add zeros for forecast_window
+        mask = torch.ones_like(batch)
+        mask[:, :, :, -forecast_window:] = 0.
+        masked_batch = batch * mask
+        cond = masked_batch
+
+        loss = self.train_step_fn(self.state, batch, cond, self)
+        #print(f'train loss {batch_idx}: {loss}')
 
         # update and log metrics
         self.train_loss(loss)
         self.log("train/loss", self.train_loss, on_step=False, on_epoch=True, prog_bar=True)
+
 
     def on_train_epoch_end(self):
         pass
 
 
     def validation_step(self, input_dict, batch_idx):
-        batch = self.encode(input_dict, forecast=False)
-        loss = self.eval_step_fn(self.state, batch)
+        batch, _, _, _ = self.encode(input_dict, forecast=False)
+
+        forecast_window = self.ar_net.forecast_window # add zeros for forecast_window
+        mask = torch.ones_like(batch)
+        mask[:, :, :, -forecast_window:] = 0.
+        masked_batch = batch * mask
+        cond = masked_batch
+
+        loss = self.eval_step_fn(self.state, batch, cond)
 
         # update and log metrics
         self.val_loss(loss)
         self.log("val/loss", self.val_loss, on_step=False, on_epoch=True, prog_bar=True)
+
 
         # DEBUG:
         #if batch_idx == 0:
@@ -492,8 +575,15 @@ class DiffusionLitModule(LightningModule):
         pass
 
     def test_step(self, input_dict, batch_idx):
-        batch = self.encode(input_dict, forecast=False)
-        loss = self.eval_step_fn(self.state, batch)
+        batch, _, _, _ = self.encode(input_dict, forecast=False)
+
+        forecast_window = self.ar_net.forecast_window # add zeros for forecast_window
+        mask = torch.ones_like(batch)
+        mask[:, :, :, -forecast_window:] = 0.
+        masked_batch = batch * mask
+        cond = masked_batch
+
+        loss = self.eval_step_fn(self.state, batch, cond)
 
         # update and log metrics
         self.test_loss(loss)
@@ -501,49 +591,78 @@ class DiffusionLitModule(LightningModule):
         print(f'test loss: {loss}')
 
         (inpainted_encoding_batch, time_batch, mask_batch, mark_batch) = self.generate_samples(
-            input_dict, clip=True)
-        encode_out = {constants.HISTORIES: inpainted_encoding_batch}
+            input_dict, num_samples=self.num_samples, clip=False)
 
+        #(inpainted_encoding_batch, time_batch, mask_batch, mark_batch) = self.encode(
+        #    input_dict, forecast=True)
+        #inpainted_encoding_batch = inpainted_encoding_batch.squeeze(1).transpose(1, 2)
+
+        encode_out = {constants.HISTORIES: inpainted_encoding_batch, constants.KL: None}
         output_dict = self.ar_net(
             times=time_batch, marks=mark_batch, masks=mask_batch, encode_out=encode_out)
 
         nlls = output_dict[constants.NLL]
-        nll, count = nlls.sum(), nlls.numel()
-        self.test_nll.update(nll, count)
+        self.test_nll(nlls, mask_batch)
         self.log("test/nll", self.test_nll, on_step=True, on_epoch=True, prog_bar=True)
-        print(f'event size: {nlls.shape[0]}')
         print(f'test nll: {self.test_nll.compute()}')
 
         times = output_dict[constants.TIMES]
         time_preds = output_dict[constants.TIME_PREDS]
-        self.test_rmse.update(
-            time_preds, times, torch.ones_like(times).bool())
+        self.test_rmse(time_preds, times, mask_batch)
         self.log("test/rmse", self.test_rmse, on_step=True, on_epoch=True, prog_bar=True)
         print(f'test rsme: {self.test_rmse.compute()}')
 
         class_preds = output_dict[constants.CLS_PREDS]
         if class_preds is not None:
             marks = output_dict[constants.MARKS]
-            self.test_acc.update(class_preds, marks,torch.ones_like(marks).bool())
-            self.log("test/acc", self.test_acc, on_step=False, on_epoch=True, prog_bar=True)
+            class_preds = class_preds.reshape(-1, self.num_samples).mode(dim=-1).values.reshape(*marks.shape)
+
+            self.test_acc.update(class_preds, marks, torch.ones_like(marks).bool())
+            self.log("test/acc", self.test_acc, on_step=True, on_epoch=True, prog_bar=True)
             print(f'test acc: {self.test_acc.compute()}')
 
-        # Keep track of times, time_preds, class_preds and marks
-        self.time_preds.append(time_preds.detach().cpu().numpy())
-        self.time_gts.append(times.detach().cpu().numpy())
+        ## TODO: add MAPE
+        #batch_size, seq_len, _ = time_batch.shape
+        #window_size = int(seq_len / 2)
 
-        if class_preds is not None:
-            self.class_preds.append(class_preds.detach().cpu().numpy())
-            self.mark_gts.append(marks.detach().cpu().numpy())
+        ## compute time_min, time_max
+        #forecast_start_idx = torch.logical_not(mask_batch).sum(1).squeeze(-1) # (B,)
+        #history_last_idx = forecast_start_idx - 1
+        #time_min = time_batch[np.arange(batch_size), history_last_idx] + 1e-6
+
+        ##import IPython; IPython.embed()
+        #times_reshaped = times.reshape(batch_size, window_size)
+        #time_preds_reshaped = time_preds.reshape(batch_size, window_size)
+
+        #time_max = torch.min(times_reshaped[:,-1], time_preds_reshaped[:,-1]).unsqueeze(-1) + 1e-6
+
+        #gt_num = torch.logical_and(times_reshaped >= time_min.repeat(1, window_size),
+        #                           times_reshaped < time_max.repeat(1, window_size)).sum(-1) # (B, T) -> (B,)
+        #pred_num = torch.logical_and(times_reshaped >= time_min.repeat(1, window_size),
+        #                             times_reshaped < time_max.repeat(1, window_size)).sum(-1) # (B, T) -> (B,)
+
+        #mape = torch.mean((gt_num - pred_num) / gt_num)
+        #print(mape)
+
+
+
+        ## Keep track of times, time_preds, class_preds and marks
+        #self.time_preds.append(time_preds.detach().cpu().numpy())
+        #self.time_gts.append(times.detach().cpu().numpy())
+
+        #if class_preds is not None:
+        #    self.class_preds.append(class_preds.detach().cpu().numpy())
+        #    self.mark_gts.append(marks.detach().cpu().numpy())
 
 
     def on_test_epoch_end(self):
-        # Save times, time_preds, class_preds and marks
-        np.save(os.path.join(self.sample_dir, 'time_gts.npy'), self.time_gts)
-        np.save(os.path.join(self.sample_dir, 'time_preds.npy'), self.time_preds)
-        if self.class_preds:
-            np.save(os.path.join(self.sample_dir, 'class_preds.npy'), self.class_preds)
-            np.save(os.path.join(self.sample_dir, 'class_gts.npy'), self.marks_gts)
+        ## Save times, time_preds, class_preds and marks
+        #np.save(os.path.join(self.sample_dir, 'time_gts.npy'), self.time_gts)
+        #np.save(os.path.join(self.sample_dir, 'time_preds.npy'), self.time_preds)
+        #if self.class_preds:
+        #    np.save(os.path.join(self.sample_dir, 'class_preds.npy'), self.class_preds)
+        #    np.save(os.path.join(self.sample_dir, 'class_gts.npy'), self.marks_gts)
+        pass
 
 
     def configure_optimizers(self):

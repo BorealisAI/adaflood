@@ -12,6 +12,7 @@ net:
   _target_: src.models.tpp.tpp_network.TransformerMix
   name: 'attn_lnp'
   num_classes: ${data.datasets.num_classes}
+  forecast_window: ${data.forecast_window}
   d_model: 64
   d_inner: 64
   n_layers: 2

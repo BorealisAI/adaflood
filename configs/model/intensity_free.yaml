@@ -16,10 +16,11 @@ net:
   _target_: src.models.tpp.tpp_network.IntensityFreePredictor
   name: 'if'
   dataset_name: ${data.datasets.dataset}
-  forecast_window: 1
+  forecast_window: ${data.forecast_window}
   d_model: 64
   num_components: 8
   num_classes: ${data.datasets.num_classes}
+  use_latent: False
   activation:
     name: tanh
     in_features: ${model.net.d_model}

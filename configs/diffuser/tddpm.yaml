@@ -1,0 +1,19 @@
+_target_: src.models.diffusion_module.DiffusionLitModule
+_partial_: True
+config:
+  _target_: src.models.diffuser.configs.vp.tddpm.get_config
+
+override_config:
+  model:
+    n_head: 64
+    n_layer: 8
+    multiplier: 4
+    dropout: 0.0
+  optim:
+    lr: 0.0002
+    weight_decay: 0.0
+
+output_dir: ${paths.output_dir}
+
+
+

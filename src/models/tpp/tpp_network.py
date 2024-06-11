@@ -13,7 +13,8 @@ import torch.distributed as dist
 
 from src import constants
 from src.models.tpp import util
-from src.models.tpp.prob_dists import NormalMixture, LogNormalMixture
+from src.models.tpp.gan.tppgan import GANDiscriminator
+from src.models.tpp.prob_dists import NormalMixture, LogNormalMixture, DiagonalGaussianDistribution
 from src.models.tpp.flow import ContinuousGRULayer, ContinuousLSTMLayer
 from src.models.tpp.thp.models import (
     TransformerEncoder, TransformerAttnEncoder, NPVIEncoder, NPMLEncoder,
@@ -26,7 +27,7 @@ logger = logging.getLogger(__name__)
 class IntensityFreePredictor(LightningModule):
     def __init__(self, name, dataset_name, d_model, num_components, num_classes, flow=None,
                  activation=None, weights_path=None, perm_invar=False, compute_acc=True,
-                 train_diffuser=False, forecast_window=1):
+                 use_latent=False, forecast_window=1):
         '''
         d_model: the size of intermediate features
         num_components: the number of mixtures
@@ -44,21 +45,24 @@ class IntensityFreePredictor(LightningModule):
         self.d_model = d_model
         self.embedding = nn.Embedding(self.num_classes+1, d_model, padding_idx=constants.PAD)
 
+        self.use_latent = use_latent
+        self.encoder_out_dim = self.d_model * 2 if self.use_latent else self.d_model
+
         # if flow is specified, it correponds to neural flow else intensity-free
         self.flow = flow
         if self.flow == 'gru':
             self.encoder = ContinuousGRULayer(
-                1 + d_model, hidden_dim=d_model,
+                1 + d_model, hidden_dim=self.encoder_out_dim,
                 model='flow', flow_model='resnet', flow_layers=1,
                 hidden_layers=2, time_net='TimeTanh', time_hidden_dime=8)
-        elif self.flow == 'lstm':
-            self.encoder = ContinuousLSTMLayer(
-                1 + d_model, hidden_dim=d_model+1,
-                model='flow', flow_model='resnet', flow_layers=1,
-                hidden_layers=2, time_net='TimeTanh', time_hidden_dime=8)
+        #elif self.flow == 'lstm':
+        #    self.encoder = ContinuousLSTMLayer(
+        #        1 + d_model, hidden_dim=d_model+1,
+        #        model='flow', flow_model='resnet', flow_layers=1,
+        #        hidden_layers=2, time_net='TimeTanh', time_hidden_dime=8)
         else:
             self.encoder = nn.GRU(
-                1 + d_model, d_model, batch_first=True)
+                1 + d_model, self.encoder_out_dim, batch_first=True)
         self.activation = util.build_activation(activation)
 
         if self.perm_invar:
@@ -72,7 +76,11 @@ class IntensityFreePredictor(LightningModule):
         if self.num_classes > 1:
             self.mark_linear = nn.Linear(decoder_hidden_dim, self.num_classes)
 
-        self.train_diffuser = train_diffuser
+        if self.use_latent:
+            self.mean_fc = nn.Linear(d_model, d_model)
+            self.logvar_fc = nn.Linear(d_model, d_model)
+        #    TCGANDiscriminator(d_model
+
 
         if weights_path is not None:
             checkpoint = torch.load(weights_path)['state_dict']
@@ -90,16 +98,29 @@ class IntensityFreePredictor(LightningModule):
         # obtain the features from the encoder
         if self.flow != 'gru' and self.flow != 'lstm':
             hidden = torch.zeros(
-                1, 1, self.d_model).repeat(1, times.shape[0], 1).to(times.device) # (1, B, D)
-            histories, _ = self.encoder(inputs, hidden) # (B, Seq, D)
+                1, 1, self.encoder_out_dim).repeat(1, times.shape[0], 1).to(times.device) # (1, B, D)
+            histories, _ = self.encoder(inputs, hidden) # (B, Seq, D or 2D)
         else:
             histories = self.encoder(inputs, times)
 
         if not with_last:
-            histories = histories[:,:-1] # (B, Seq-1, D)
+            histories = histories[:,:-1] # (B, Seq-1, D or 2D)
+
+        # TODO: if self.use_latent, split histories into mean and std and compute kl loss
+        kl_loss = None
+        if self.use_latent:
+            posterior = DiagonalGaussianDistribution(histories, self.mean_fc, self.logvar_fc)
+            kl_loss = posterior.kl()
+            #kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
+            #histories = posterior.sample()
+            if self.training:
+                histories = posterior.sample()
+            else:
+                histories = posterior.mode()
+                print('sampled the mode')
 
         encode_out = {
-            constants.HISTORIES: histories}
+            constants.HISTORIES: histories, constants.KL: kl_loss}
         return encode_out
 
     def diffuse(self, encode_out):
@@ -156,7 +177,7 @@ class IntensityFreePredictor(LightningModule):
         output_dict = {
             constants.EVENT_LL: event_ll,
             constants.SURV_LL: surv_ll,
-            constants.KL: None,
+            constants.KL: encode_out[constants.KL],
             constants.TIME_PREDS: time_predictions,
             constants.CLS_LL: class_log_probs,
             constants.CLS_LOGITS: class_logits,
@@ -177,6 +198,7 @@ class IntensityFreePredictor(LightningModule):
         total_mark_preds_in_window = []
         total_marks_in_window = []
         total_nll_in_window = []
+        total_masks_in_window = []
 
         for batch_idx in range(batch_size):
             #print(f'Processing: {batch_idx}/{batch_size} batch')
@@ -248,35 +270,47 @@ class IntensityFreePredictor(LightningModule):
 
                 assert subset_time_i.shape[1] == start_idx + forecast_window
                 # collect predictions and corresponding times and marks
+                width = self.delta * 2
                 time_preds_in_window = subset_time_i[
-                    :,-forecast_window:].reshape(forecast_window)
+                    :,-width:].reshape(width)
                 times_in_window = time_i[
-                    :,start_idx:start_idx+forecast_window].reshape(forecast_window)
+                    :,start_idx-width+forecast_window:start_idx+forecast_window].reshape(width)
 
                 mark_preds_in_window = subset_mark_i[
-                    :,-forecast_window:].reshape(forecast_window) - 1 # pred marks are 0-indexed
+                    :,-width:].reshape(width) - 1 # pred marks are 0-indexed
                 marks_in_window = mark_i[
+                    :,start_idx-width+forecast_window:start_idx+forecast_window].reshape(width)
+
+                masks_in_window = mask_i[
                     :,start_idx:start_idx+forecast_window].reshape(forecast_window)
+                masks_in_window = torch.cat(
+                    [torch.zeros(width-forecast_window).bool().to(times.device), masks_in_window])
 
                 total_time_preds_in_window.append(time_preds_in_window)
                 total_times_in_window.append(times_in_window)
 
                 total_mark_preds_in_window.append(mark_preds_in_window)
                 total_marks_in_window.append(marks_in_window)
+                total_masks_in_window.append(masks_in_window)
 
-                total_nll_in_window.append(torch.tensor(nll_in_window).to(times.device))
+                nll_in_window = torch.tensor(nll_in_window).to(times.device)
+                nll_dummy = torch.zeros(width - forecast_window).to(times.device)
+                nll_in_window = torch.cat((nll_dummy, nll_in_window))
+                total_nll_in_window.append(nll_in_window)
 
-        total_time_preds_in_window = torch.cat(total_time_preds_in_window, dim=0)
-        total_times_in_window = torch.cat(total_times_in_window, dim=0)
+        total_time_preds_in_window = torch.cat(total_time_preds_in_window, dim=0).reshape(-1, width)
+        total_times_in_window = torch.cat(total_times_in_window, dim=0).reshape(-1, width)
+
+        total_masks_in_window = torch.cat(total_masks_in_window, dim=0).reshape(-1, width)
 
         if self.num_classes > 1:
-            total_mark_preds_in_window = torch.cat(total_mark_preds_in_window, dim=0)
-            total_marks_in_window = torch.cat(total_marks_in_window, dim=0)
+            total_mark_preds_in_window = torch.cat(total_mark_preds_in_window, dim=0).reshape(-1, width)
+            total_marks_in_window = torch.cat(total_marks_in_window, dim=0).reshape(-1, width)
         else:
             total_mark_preds_in_window = None
             total_marks_in_window = None
 
-        total_nll_in_window = torch.cat(total_nll_in_window, dim=0)
+        total_nll_in_window = torch.cat(total_nll_in_window, dim=0).reshape(-1, width)
         #print(f'It took {time.time() - start_time} sec')
 
         forecast_out = {
@@ -284,7 +318,8 @@ class IntensityFreePredictor(LightningModule):
             constants.TIMES: total_times_in_window,
             constants.CLS_PREDS: total_mark_preds_in_window,
             constants.MARKS: total_marks_in_window,
-            constants.NLL: total_nll_in_window
+            constants.NLL: total_nll_in_window,
+            constants.MASKS: total_masks_in_window
         }
         return forecast_out
 
@@ -306,9 +341,9 @@ class IntensityFreePredictor(LightningModule):
 
         forecast_out = {
             constants.TIME_PREDS: valid_time_preds,
-            constants.TIMES: valid_times,
+            constants.TIMES: times, # valid_times,
             constants.CLS_PREDS: valid_class_predictions,
-            constants.MARKS: valid_marks,
+            constants.MARKS: marks, # valid_marks,
             constants.NLL: nll
         }
         return forecast_out
@@ -318,19 +353,23 @@ class IntensityFreePredictor(LightningModule):
         if isinstance(missing_masks, torch.Tensor):
             masks = torch.logical_and(masks.bool(), missing_masks.bool()).float()
 
-        if len(indices) > 0: # event-by-event forecast
-            forecast_out = self.forecast(
-                times=times, marks=marks, masks=masks, missing_masks=missing_masks,
-                indices=indices)
-            return forecast_out
-        elif encode_out is not None: # multi-step diff
+        if encode_out is not None: # multi-step diff
+            #print('mult-step forecast')
             forecast_out = self.forecast_multi(
                 times=times, marks=marks, masks=masks, missing_masks=missing_masks,
                 indices=indices, encode_out=encode_out)
             return forecast_out
+        elif self.forecast_window > 0: # it distinguishes event-by-event forecast and one-step (baseline) forecast
+            #print('event-by-event forecast')
+            forecast_out = self.forecast(
+                times=times, marks=marks, masks=masks, missing_masks=missing_masks,
+                indices=indices)
+            return forecast_out
         else:
+            #print('one-step baseline forecast')
             encode_out = self.encode(times, marks, masks, missing_masks, indices)
             decode_out = self.decode(times, masks, marks, encode_out)
+            #decode_out = self.decode(times[:,1:], masks[:,1:], marks[:,1:], encode_out, forecast=True, last_only=False)
             return decode_out
 
 

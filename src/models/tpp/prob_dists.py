@@ -1,6 +1,7 @@
 import torch
 import stribor as st
 import torch.nn as nn
+import numpy as np
 import torch.nn.functional as F
 from torch.distributions import Normal as TorchNormal
 from torch.distributions import LogNormal as TorchLogNormal
@@ -83,6 +84,7 @@ class NormalMixture(nn.Module):
         output_dict = {
             'event_ll': event_ll, 'surv_ll': log_survival_last, 'preds': preds}
         return output_dict
+
 
 class LogNormalMixture(nn.Module):
     def __init__(self, hidden_dim, components, activation, vi_method=None):
@@ -233,11 +235,66 @@ class LogNormalMixture(nn.Module):
             event_ll = log_probs[:,-1].squeeze(-1) # (1,)
             preds = preds[:,-1].squeeze(-1) # (1,)
         else:
-            event_ll = log_probs[masks.bool()] # (# valid events,)
-            preds = preds[masks.bool()]  # (# valid events,)
+            event_ll = log_probs #[masks.bool()] # (# valid events,)
+            preds = preds #[masks.bool()]  # (# valid events,) # TODO: put masks back
 
         output_dict = {
             'event_ll': event_ll, 'surv_ll': None, 'preds': preds, 'log_weights': None, 'lognorm_dist': None, 'mu': None, 'sigma': None}
         return output_dict
 
+class NormalDist(object):
+    def __init__(self, mean, std):
+        self.mean = mean
+        self.var = std ** 2
+        self.logvar = torch.log(self.var)
+
+class DiagonalGaussianDistribution(object):
+    def __init__(self, parameters, mean_fc, logvar_fc, deterministic=False):
+        self.parameters = parameters
+        mean_input, logvar_input = torch.chunk(parameters, 2, dim=-1)
+        self.mean = mean_fc(mean_input)
+        self.logvar = logvar_fc(logvar_input)
+
+        self.logvar = torch.clamp(self.logvar, -30.0, 10.0) #torch.clamp(self.logvar, -30.0, 20.0)
+        self.deterministic = deterministic
+        self.std = torch.exp(0.5 * self.logvar)
+        self.var = torch.exp(self.logvar)
+        if self.deterministic:
+            self.var = self.std = torch.zeros_like(self.mean).to(device=self.parameters.device)
+            #self.var = self.std = 0.01 * torch.ones_like(self.mean).to(device=self.parameters.device)
+
+        target_std = 1.0
+        self.target = NormalDist(mean=torch.zeros_like(self.mean),
+                                 std=target_std * torch.ones_like(self.logvar))
+
+    def kl(self):
+        if self.deterministic:
+            return torch.Tensor([0.]).to(self.parameters.device)
+        else:
+            if self.target is None:
+                kl_losses = 0.5 * torch.sum(torch.pow(self.mean, 2)
+                                       + self.var - 1.0 - self.logvar,
+                                       dim=2)
+            else:
+                kl_losses = 0.5 * torch.sum(
+                    torch.pow(self.mean - self.target.mean, 2) / self.target.var
+                    + self.var / self.target.var - self.mean.shape[-1] - self.logvar + self.target.logvar,
+                    dim=2)
+            return kl_losses.sum(1)
+
+    def nll(self, sample, dims=[1,2]):
+        if self.deterministic:
+            return torch.Tensor([0.])
+        logtwopi = np.log(2.0 * np.pi)
+        return 0.5 * torch.sum(
+            logtwopi + self.logvar + torch.pow(sample - self.mean, 2) / self.var,
+            dim=dims)
+
+    def sample(self):
+        x = self.mean + self.std * torch.randn(self.mean.shape).to(device=self.parameters.device)
+        #print(self.mean.min().item(), self.mean.max().item(), self.std.min().item(), self.std.max().item())
+        return x
+
+    def mode(self):
+        return self.mean
 

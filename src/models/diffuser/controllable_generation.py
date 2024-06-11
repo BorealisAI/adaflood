@@ -42,19 +42,25 @@ def get_pc_inpainter(sde, predictor, corrector, inverse_scaler, snr,
   def get_inpaint_update_fn(update_fn):
     """Modify the update function of predictor & corrector to incorporate data information."""
 
-    def inpaint_update_fn(model, data, mask, x, t, next_t):
+    def inpaint_update_fn(model, data, mask, cond, x, t, next_t):
       with torch.no_grad():
         for u in range(num_resample):
           vec_t = torch.ones(data.shape[0], device=data.device) * t
-          x, x_mean = update_fn(x, vec_t, model=model) # unknown_{t} -> unknown_{t-1}
+          if next_t is not None:
+            vec_next_t = torch.ones(data.shape[0], device=data.device) * next_t
+          else:
+            vec_next_t = None
+
+          x, x_mean = update_fn(x, vec_t, vec_next_t, cond, model=model) # unknown_{t} -> unknown_{t-1}
           masked_data_mean, std = sde.marginal_prob(data, vec_t) # known data -> known_{t-1}
           masked_data = masked_data_mean + torch.randn_like(x) * std[:, None, None, None]
-          x = x * (1. - mask) + masked_data * mask
-          x_mean = x * (1. - mask) + masked_data_mean * mask
+          #x = x * (1. - mask) + masked_data * mask
+          #x_mean = x * (1. - mask) + masked_data_mean * mask
 
           if u < num_resample-1 and next_t is not None and next_t > eps:
-            f, G = sde.discretize(x, next_t.view(-1)) # f = sqrt(1-b_{t-1}) x_{t-1} - x_{t-1}, G = sqrt(b_{t-1})
-            x = f + x + G * torch.randn_like(x)
+            x, x_mean = sde.forward(x, t, next_t)
+            #f, G = sde.discretize(x, next_t.view(-1)) # f = sqrt(1-b_{t-1}) x_{t-1} - x_{t-1}, G = sqrt(b_{t-1})
+            #x = f + x + G * torch.randn_like(x)
 
         return x, x_mean
 
@@ -63,7 +69,7 @@ def get_pc_inpainter(sde, predictor, corrector, inverse_scaler, snr,
   projector_inpaint_update_fn = get_inpaint_update_fn(predictor_update_fn)
   corrector_inpaint_update_fn = get_inpaint_update_fn(corrector_update_fn)
 
-  def pc_inpainter(model, data, mask):
+  def pc_inpainter(model, data, mask, ratio=1.0):
     """Predictor-Corrector (PC) sampler for image inpainting.
 
     Args:
@@ -75,15 +81,20 @@ def get_pc_inpainter(sde, predictor, corrector, inverse_scaler, snr,
     Returns:
       Inpainted (complete) images.
     """
+    cond = data * mask
     with torch.no_grad():
       # Initial sample
       x = data * mask + sde.prior_sampling(data.shape).to(data.device) * (1. - mask)
-      timesteps = torch.linspace(sde.T, eps, sde.N)
-      for i in range(sde.N):
+      num_steps = int(sde.N * ratio)
+      timesteps = torch.linspace(sde.T, eps, num_steps)
+      print(f'Number of steps for inpainting: {num_steps}')
+      #timesteps = torch.linspace(sde.T, eps, sde.N)
+
+      for i in range(num_steps):
         t = timesteps[i]
-        next_t = None if i == (sde.N -1) else timesteps[i+1]
-        x, x_mean = corrector_inpaint_update_fn(model, data, mask, x, t, next_t)
-        x, x_mean = projector_inpaint_update_fn(model, data, mask, x, t, next_t)
+        next_t = None if i == (num_steps - 1) else timesteps[i+1]
+        x, x_mean = corrector_inpaint_update_fn(model, data, mask, cond, x, t, next_t)
+        x, x_mean = projector_inpaint_update_fn(model, data, mask, cond, x, t, next_t)
 
       return inverse_scaler(x_mean if denoise else x)
 

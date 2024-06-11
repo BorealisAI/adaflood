@@ -71,8 +71,9 @@ def train(cfg: DictConfig) -> Tuple[dict, dict]:
         cfg.base_ckpt_path = extract_best_ckpt_path(base_ckpt_path)
         log.info(f"Extracted the best checkpoint path: {cfg.base_ckpt_path}")
 
-    ckpt = torch.load(cfg.base_ckpt_path)['state_dict']
-    model.load_state_dict(ckpt, strict=True)
+    base_ckpt = torch.load(cfg.base_ckpt_path)['state_dict']
+    model.load_state_dict(base_ckpt, strict=True)
+
 
     log.info("Instantiating callbacks...")
     callbacks: List[Callback] = utils.instantiate_callbacks(cfg.get("callbacks"))
@@ -83,7 +84,7 @@ def train(cfg: DictConfig) -> Tuple[dict, dict]:
     log.info(f"Instantiating trainer <{cfg.trainer._target_}>")
 
     trainer: Trainer = hydra.utils.instantiate(
-        cfg.trainer, callbacks=callbacks, logger=logger, strategy="ddp_find_unused_parameters_true")
+        cfg.trainer, callbacks=callbacks, logger=logger) #, strategy="ddp_find_unused_parameters_true")
 
     object_dict = {
         "cfg": cfg,
@@ -106,7 +107,13 @@ def train(cfg: DictConfig) -> Tuple[dict, dict]:
     log.info(f"Instantiating diffuser <{cfg.model._target_}>")
 
     diffuser_partial: LightningModule = hydra.utils.instantiate(cfg.diffuser)
-    diffuser = diffuser_partial(ar_net=model.net)
+
+    diffuser_config = hydra.utils.instantiate(cfg.diffuser.config)
+    override_config = hydra.utils.instantiate(cfg.diffuser.override_config)
+    diffuser_config.update(override_config)
+
+    diffuser = diffuser_partial(config=diffuser_config, ar_net=model.net)
+
 
     if cfg.get("train"):
         log.info("Starting training!")

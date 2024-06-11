@@ -18,6 +18,6 @@ missing_rate: 0.0
 use_mark: True
 run_bootstrap: False
 
-delta: 1
-num_forecasts: 32
+forecast_window: 0
+num_forecasts: 0
 

@@ -27,8 +27,8 @@ from src.models.diffuser.sde_lib import VESDE, VPSDE
 def get_optimizer(config, params):
   """Returns a flax optimizer object based on `config`."""
   if config.optim.optimizer == 'Adam':
-    optimizer = optim.Adam(params, lr=config.optim.lr, betas=(config.optim.beta1, 0.999), eps=config.optim.eps,
-                           weight_decay=config.optim.weight_decay)
+    optimizer = optim.Adam(params, lr=config.optim.lr, betas=(config.optim.beta1, 0.999),
+                           eps=config.optim.eps, weight_decay=config.optim.weight_decay)
   else:
     raise NotImplementedError(
       f'Optimizer {config.optim.optimizer} not supported yet!')
@@ -135,7 +135,7 @@ def get_ddpm_loss_fn(vpsde, train, reduce_mean=True):
 
   reduce_op = torch.mean if reduce_mean else lambda *args, **kwargs: 0.5 * torch.sum(*args, **kwargs)
 
-  def loss_fn(model, batch):
+  def loss_fn(model, batch, cond):
     model_fn = mutils.get_model_fn(model, train=train)
     labels = torch.randint(0, vpsde.N, (batch.shape[0],), device=batch.device)
     sqrt_alphas_cumprod = vpsde.sqrt_alphas_cumprod.to(batch.device)
@@ -143,7 +143,7 @@ def get_ddpm_loss_fn(vpsde, train, reduce_mean=True):
     noise = torch.randn_like(batch)
     perturbed_data = sqrt_alphas_cumprod[labels, None, None, None] * batch + \
                      sqrt_1m_alphas_cumprod[labels, None, None, None] * noise
-    score = model_fn(perturbed_data, labels)
+    score = model_fn(perturbed_data, labels, cond)
     losses = torch.square(score - noise)
     losses = reduce_op(losses.reshape(losses.shape[0], -1), dim=-1)
     loss = torch.mean(losses)
@@ -178,7 +178,7 @@ def get_step_fn(sde, train, optimize_fn=None, reduce_mean=False, continuous=True
     else:
       raise ValueError(f"Discrete training for {sde.__class__.__name__} is not recommended.")
 
-  def step_fn(state, batch, lightning_module=None):
+  def step_fn(state, batch, cond=None, lightning_module=None):
     """Running one step of training or evaluation.
 
     This function will undergo `jax.lax.scan` so that multiple steps can be pmapped and jit-compiled together
@@ -196,13 +196,14 @@ def get_step_fn(sde, train, optimize_fn=None, reduce_mean=False, continuous=True
     if train:
       if lightning_module is not None:
         optimizer = lightning_module.optimizers()
-        loss = loss_fn(model, batch)
+        optimizer.zero_grad()
+        loss = loss_fn(model, batch, cond)
         lightning_module.manual_backward(loss)
         optimize_fn(optimizer, model.parameters(), step=state['step'])
       else:
         optimizer = state['optimizer']
         optimizer.zero_grad()
-        loss = loss_fn(model, batch)
+        loss = loss_fn(model, batch, cond)
         loss.backward()
         optimize_fn(optimizer, model.parameters(), step=state['step'])
       state['step'] += 1
@@ -212,7 +213,7 @@ def get_step_fn(sde, train, optimize_fn=None, reduce_mean=False, continuous=True
         ema = state['ema']
         ema.store(model.parameters())
         ema.copy_to(model.parameters())
-        loss = loss_fn(model, batch)
+        loss = loss_fn(model, batch, cond)
         ema.restore(model.parameters())
 
     return loss

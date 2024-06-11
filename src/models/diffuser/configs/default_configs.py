@@ -30,7 +30,7 @@ def get_default_configs():
   config.eval = evaluate = ml_collections.ConfigDict()
   evaluate.begin_ckpt = 9
   evaluate.end_ckpt = 26
-  evaluate.batch_size = 64 # 1024
+  evaluate.batch_size = 96 # 64 # 1024
   evaluate.enable_sampling = False
   evaluate.num_samples = 50000
   evaluate.enable_loss = True
@@ -39,11 +39,12 @@ def get_default_configs():
 
   # data
   config.data = data = ml_collections.ConfigDict()
-  data.dataset = 'CIFAR10'
+  #data.dataset = 'CIFAR10'
+  data.dataset = 'TPP'
   #data.width = 8
   #data.height = 32
   #data.image_size = 32
-  data.random_flip = True
+  data.random_flip = False # True
   data.centered = False
   data.uniform_dequantization = False
   data.num_channels = 1
@@ -51,16 +52,16 @@ def get_default_configs():
   # model
   config.model = model = ml_collections.ConfigDict()
   model.sigma_min = 0.01
-  model.sigma_max = 50
+  model.sigma_max = 50 #50
   model.num_scales = 1000
   model.beta_min = 0.1
-  model.beta_max = 20.
+  model.beta_max = 20. # 20.
   model.dropout = 0.1
   model.embedding_type = 'fourier'
 
   # optimization
   config.optim = optim = ml_collections.ConfigDict()
-  optim.weight_decay = 0
+  optim.weight_decay = 0.0
   optim.optimizer = 'Adam'
   optim.lr = 2e-4 # 2e-4
   optim.beta1 = 0.9

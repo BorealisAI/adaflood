@@ -4,23 +4,18 @@
 # python train.py experiment=example
 
 defaults:
-  - override /data: tpp_dataset.yaml
-  - override /model: intensity_free.yaml
-  - override /callbacks: tpp.yaml
-  - override /trainer: default.yaml
-  - override /hydra: default.yaml
+  - override /callbacks: diffusion.yaml
+  - override /diffuser: tddpm.yaml
 
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
 tags: ["base", "final"]
-eval_tags: ["base", "final"]
-
-seed: 1
+eval_tags: ["tddpm", "test"]
 
 trainer:
-  min_epochs: 300
-  max_epochs: 2000
+  min_epochs: 100
+  max_epochs: 10000
 
 data:
   batch_size: 96
@@ -28,4 +23,7 @@ data:
 hydra:
   run:
     dir: ${paths.log_dir}/${task_name}/seed${seed}/d${model.net.d_model}_lr${model.optimizer.lr}_wd${model.optimizer.weight_decay}/${eval_tags[0]}_${eval_tags[1]}
+
+base_ckpt_path: ${paths.output_dir}/checkpoints/best.ckpt
+
 

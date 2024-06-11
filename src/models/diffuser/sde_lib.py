@@ -133,28 +133,42 @@ class VPSDE(SDE):
     return 1
 
   def sde(self, x, t):
+    """
+    Eq.(11) -> Eq.(32) with beta_t = beta_min + t * (beta_max - beta_min)
+    where beta_min = self.beta_0 and beta_max = self.beta_1
+    """
     beta_t = self.beta_0 + t * (self.beta_1 - self.beta_0)
     drift = -0.5 * beta_t[:, None, None, None] * x
     diffusion = torch.sqrt(beta_t)
     return drift, diffusion
 
   def marginal_prob(self, x, t):
+    """ marginal prob denotes p_0t (x(t) | x(0)) which is defined in Eq.(33) """
     log_mean_coeff = -0.25 * t ** 2 * (self.beta_1 - self.beta_0) - 0.5 * t * self.beta_0
     mean = torch.exp(log_mean_coeff[:, None, None, None]) * x
     std = torch.sqrt(1. - torch.exp(2. * log_mean_coeff))
     return mean, std
 
   def prior_sampling(self, shape):
+    """ z ~ p_T ( x(T) ) = N(0, I) """
     return torch.randn(*shape)
 
   def prior_logp(self, z):
+    """ log p_T ( x(T) ) """
     shape = z.shape
     N = np.prod(shape[1:])
     logps = -N / 2. * np.log(2 * np.pi) - torch.sum(z ** 2, dim=(1, 2, 3)) / 2.
     return logps
 
   def discretize(self, x, t):
-    """DDPM discretization."""
+    """
+    DDPM discretization.
+    Eq.(10): x_i = \sqrt{1-beta_i} x_{i-1} + \sqrt{beta_i} z_{i-1}. Then,
+    x_i - x_{i-1} = (\sqrt{alpha_i} x_{i-1} - x_{i-1}) + \sqrt{beta_i} z_{i-1}
+    where alpha_i = 1-beta_i. Then, we define,
+    f = \sqrt{alpha_i} x_{i-1} - x_{i-1}
+    g = \sqrt{beta_i}
+    """
     timestep = (t * (self.N - 1) / self.T).long()
     beta = self.discrete_betas.to(x.device)[timestep]
     alpha = self.alphas.to(x.device)[timestep]
@@ -162,6 +176,21 @@ class VPSDE(SDE):
     f = torch.sqrt(alpha)[:, None, None, None] * x - x
     G = sqrt_beta
     return f, G
+
+  def forward(self, x, t, next_t):
+    timestep = (t * (self.N - 1) / self.T).long()
+    next_timestep = (next_t * (self.N - 1) / self.T).long()
+
+    alpha_bar_t = self.alphas_cumprod.to(t.device)[timestep]
+    alpha_bar_next_t = self.alphas_cumprod.to(t.device)[next_timestep]
+    alpha_bar_t_over_next_t = alpha_bar_t / alpha_bar_next_t
+
+    coeff_x = torch.sqrt(alpha_bar_t_over_next_t)
+    x_mean = coeff_x * x
+    noise = torch.randn_like(x)
+    x = x_mean + torch.sqrt(1 - alpha_bar_t_over_next_t) * noise
+    return x, x_mean
+
 
 
 class subVPSDE(SDE):

@@ -1,12 +1,13 @@
 from typing import Any
 
 import torch
+import numpy as np
 from lightning import LightningModule
 from torchmetrics import MinMetric, MaxMetric, MeanMetric
 from torchmetrics.classification.accuracy import Accuracy
 
 from src import constants
-from src.utils.metrics import MeanMetricWithCount, MaskedRMSE, MaskedAccuracy
+from src.utils.metrics import MeanMetricWithCount, MaskedRMSE, MaskedAccuracy, MaskedNLL
 
 class TPPLitModule(LightningModule):
     """Example of LightningModule for MNIST classification.
@@ -38,11 +39,15 @@ class TPPLitModule(LightningModule):
         self.net = net
         self.criterion = criterion
         self.is_forecast = self.net.forecast_window > 0
+        self.num_samples = 1
 
         # for averaging nll across batches
         self.train_nll = MeanMetricWithCount()
         self.val_nll = MeanMetricWithCount()
-        self.test_nll = MeanMetricWithCount()
+        if self.is_forecast:
+            self.test_nll = MaskedNLL(self.num_samples)
+        else:
+            self.test_nll = MeanMetricWithCount()
 
         # for averaging rmse across batches
         self.train_rmse = MaskedRMSE()
@@ -67,6 +72,9 @@ class TPPLitModule(LightningModule):
         self.test_nll_best = MinMetric()
         self.test_rmse_best = MinMetric()
         self.test_acc_best = MinMetric()
+
+        # for tracking kl
+        self.train_kl = MeanMetric()
 
         self.no_decay_layer_keywords = ['cross_attn_stack']
 
@@ -95,6 +103,65 @@ class TPPLitModule(LightningModule):
         self.test_acc.reset()
         self.test_acc_best.reset()
 
+    #def preprocess(self, input_dict):
+    #    times = input_dict[constants.TIMES]
+    #    masks = input_dict[constants.MASKS]
+    #    marks = input_dict[constants.MARKS]
+    #    indices = input_dict[constants.INDICES]
+
+    #    #batch_size = histories.shape[0] # B
+    #    #feat_dim = histories.shape[1] # D
+
+    #    time_batch = []
+    #    mask_batch = []
+    #    mark_batch = []
+    #    forecast_window = self.net.forecast_window # add zeros for forecast_window
+
+    #    for i, index_i in enumerate(indices):
+    #        histories_i = []
+    #        times_i = []
+    #        masks_i = []
+    #        marks_i = []
+
+    #        valid_index_i = index_i[index_i >= 0]
+    #        #if not forecast:
+    #        #    valid_index_i = np.random.choice(valid_index_i.detach().cpu().numpy(), size=4, replace=False)
+
+    #        for start_index in valid_index_i: # start_idx is included in the forecast_window
+    #            #if not forecast:
+    #            #    history_len = self.config.data.width - forecast_window
+    #            #    valid_histories = histories[i][:,start_index-history_len-1:start_index+forecast_window-1]
+    #            #    histories_i.append(valid_histories)
+    #            #else:
+    #            #zeros = torch.zeros((feat_dim, forecast_window)) #.to(histories.device)
+    #            history_len = self.net.delta * 2 - forecast_window
+    #            #valid_histories = histories[i][:,start_index-history_len:start_index]
+    #            #extended_histories = torch.cat((valid_histories, zeros), dim=-1) # D x width
+    #            #histories_i.append(extended_histories) # num_indices x D x width
+
+    #            new_mask_i = torch.zeros_like(masks[i][start_index-history_len:start_index+forecast_window])
+    #            new_mask_i[-forecast_window:] = 1 # e.g. [0, 0, 0, 0, 1, 1, 1, 1]: we compute metrics for event only in forecast window
+
+    #            # collect time, mask and mark for history and forecast_window indicies
+    #            times_i.append(times[i][start_index-history_len:start_index+forecast_window])
+    #            masks_i.append(new_mask_i)
+    #            marks_i.append(marks[i][start_index-history_len:start_index+forecast_window])
+
+    #        #history_batch.append(torch.stack(histories_i)) # B x num_indices x D x width
+    #        time_batch.append(torch.stack(times_i))
+    #        mask_batch.append(torch.stack(masks_i))
+    #        mark_batch.append(torch.stack(marks_i))
+
+    #    #history_batch = torch.cat(history_batch).unsqueeze(1) # (N, 1, D, T) where T = width
+    #    time_batch = torch.cat(time_batch) # (N, T, 1)
+    #    mask_batch = torch.cat(mask_batch) # (N, T, 1)
+    #    mark_batch = torch.cat(mark_batch) # (N, T, 1)
+
+    #
+    #    batch = (time_batch, mask_batch, mark_batch)
+    #    return batch
+
+
     def model_step(self, input_dict):
         output_dict = self.net(**input_dict)
         if self.is_forecast:
@@ -108,12 +175,23 @@ class TPPLitModule(LightningModule):
         output_dict = self.model_step(input_dict)
 
         # update nll
-        nll = output_dict[constants.LOSS]
+        loss, nlls = output_dict[constants.LOSS], output_dict[constants.NLLS]
         count = input_dict[constants.MASKS].sum()
-        self.train_nll(nll, count)
+
+        self.train_nll(torch.sum(nlls), count)
         self.log("train/nll", self.train_nll, on_step=False, on_epoch=True, prog_bar=True)
 
-        return nll
+        kl = output_dict[constants.KL]
+        if kl is not None:
+            self.train_kl(kl)
+            self.log("train/kl", self.train_kl, on_step=False, on_epoch=True, prog_bar=True)
+
+        times = input_dict[constants.TIMES]
+        time_preds = output_dict[constants.TIME_PREDS]
+        # TODO: 1) add a discriminator that takes preds and times, 2) add optimizer_g and
+        # optimizer_d, 3) compute adv loss
+
+        return loss
 
     def on_train_epoch_end(self):
         pass
@@ -122,10 +200,10 @@ class TPPLitModule(LightningModule):
         output_dict = self.model_step(input_dict)
 
         # update nll
-        nll = output_dict[constants.LOSS]
+        loss, nlls = output_dict[constants.LOSS], output_dict[constants.NLLS]
         masks = input_dict[constants.MASKS].bool()
         count = masks.sum()
-        self.val_nll(nll, count)
+        self.val_nll(torch.sum(nlls), count)
         self.log("val/nll", self.val_nll, on_step=False, on_epoch=True, prog_bar=True)
 
         # update rmse
@@ -184,32 +262,55 @@ class TPPLitModule(LightningModule):
     def test_step(self, input_dict, batch_idx):
         output_dict = self.model_step(input_dict)
         if self.is_forecast:
+            masks = output_dict['masks']
+
             nlls = output_dict[constants.NLL]
-            nll, count = nlls.sum(), nlls.numel()
-            #print(f'event size: {nlls.shape[0]}')
-            self.test_nll.update(nll, count)
+            self.test_nll(nlls, masks)
             self.log("test/nll", self.test_nll, on_step=True, on_epoch=True, prog_bar=True)
             #print(f'test nll: {self.test_nll.compute()}')
 
             times = output_dict[constants.TIMES]
             time_preds = output_dict[constants.TIME_PREDS]
-            self.test_rmse.update(
-                time_preds, times, torch.ones_like(times).bool())
+            self.test_rmse(time_preds, times, masks)
             self.log("test/rmse", self.test_rmse, on_step=True, on_epoch=True, prog_bar=True)
             #print(f'test rsme: {self.test_rmse.compute()}')
 
             class_preds = output_dict[constants.CLS_PREDS]
             if class_preds is not None:
                 marks = output_dict[constants.MARKS]
-                self.test_acc.update(class_preds, marks, torch.ones_like(marks).bool())
+                self.test_acc(class_preds, marks, torch.ones_like(marks).bool())
                 self.log("test/acc", self.test_acc, on_step=True, on_epoch=True, prog_bar=True)
-                print(f'test acc: {self.test_acc.compute()}')
+                #print(f'test acc: {self.test_acc.compute()}')
+
+            ### TODO: add MAPE
+            #batch_size, seq_len, _ = times.shape
+            #window_size = int(seq_len / 2)
+
+            ## compute time_min, time_max
+            #forecast_start_idx = torch.logical_not(masks).sum(1).squeeze(-1) # (B,)
+            #history_last_idx = forecast_start_idx - 1
+            #time_min = times[np.arange(batch_size), history_last_idx] + 1e-6
+
+            ##times_reshaped = times.reshape(batch_size, window_size)
+            ##time_preds_reshaped = time_preds.reshape(batch_size, window_size)
+
+            #time_max = torch.min(times_reshaped[:,-1], time_preds_reshaped[:,-1]).unsqueeze(-1) + 1e-6
+
+
+
+            #gt_num = torch.logical_and(times_reshaped >= time_min, times_reshaped < time_max).sum(-1) # (B, T) -> (B,)
+            #pred_num = torch.logical_and(times_reshaped >= time_min, times_reshaped < time_max).sum(-1) # (B, T) -> (B,)
+
+            #mape = torch.mean((gt_num - pred_num) / gt_num)
+            #print(mape)
+
+
         else:
             # update nll
-            nll = output_dict[constants.LOSS]
+            loss, nlls = output_dict[constants.LOSS], output_dict[constants.NLLS]
             masks = input_dict[constants.MASKS].bool()
             count = masks.sum()
-            self.test_nll.update(nll, count)
+            self.test_nll.update(torch.sum(nlls), count)
             self.log("test/nll", self.test_nll, on_step=False, on_epoch=True, prog_bar=True)
 
             # update rmse
@@ -268,5 +369,14 @@ class TPPLitModule(LightningModule):
                     "frequency": 1,
                 },
             }
+
+        #def configure_optimizers(self):
+        #lr = self.hparams.lr
+        #b1 = self.hparams.b1
+        #b2 = self.hparams.b2
+
+        #opt_g = torch.optim.Adam(self.generator.parameters(), lr=lr, betas=(b1, b2))
+        #opt_d = torch.optim.Adam(self.discriminator.parameters(), lr=lr, betas=(b1, b2))
+        #return [opt_g, opt_d], []
         return {"optimizer": optimizer}
 

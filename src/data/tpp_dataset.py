@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 class TPPDataModule(LightningModule):
     def __init__(self, datasets, data_dir, batch_size, num_workers,
-                 pin_memory=False, debug=False, **kwargs):
+                 pin_memory=False, **kwargs):
         super().__init__()
         self.dataset = datasets['dataset']
         self.num_classes = datasets['num_classes']
@@ -23,7 +23,7 @@ class TPPDataModule(LightningModule):
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.pin_memory = pin_memory
-        self.debug = debug
+        self.debug = kwargs.get('debug', False)
         self.kwargs = kwargs
 
     def prepare_data(self):
@@ -79,6 +79,7 @@ class TPPDataset(Dataset):
         '''
         super(TPPDataset).__init__()
         self.mode = mode
+        self.debug = kwargs.get('debug', False)
 
         if dataset in self.synthetic_data:
             data_type_dir = os.path.join(data_dir, 'synthetic')
@@ -106,10 +107,13 @@ class TPPDataset(Dataset):
 
         train_rate = kwargs.get('train_rate', 1.0)
         eval_rate = kwargs.get('eval_rate', 1.0)
-        num_data = len(times)
+        num_data, num_seq = times.shape
         (start_idx, end_idx) = self._get_split_indices(
             num_data, mode=mode, train_size=train_size, val_size=val_size,
             train_rate=train_rate, eval_rate=eval_rate)
+
+        #if mode == 'train':
+        #    end_idx = 1
 
         self._times = torch.tensor(
             times[start_idx:end_idx], dtype=torch.float32).unsqueeze(-1)
@@ -120,8 +124,14 @@ class TPPDataset(Dataset):
 
         # generate start indices for delta-future forecast
         delta = constants.DELTAS[dataset]
-        num_forecasts = kwargs['num_forecasts'] # maximum number of forecasts per sequence
-        if num_forecasts > 0: # and mode != 'train':
+        forecast_window = kwargs['forecast_window']
+
+        if mode == 'train':
+            num_forecasts = num_seq - delta * 2
+        else:
+            num_forecasts = kwargs['num_forecasts'] # maximum number of forecasts per sequence
+
+        if forecast_window > 0 and num_forecasts > 0:
             forecast_idx_path = os.path.join(
                 data_type_dir, 'forecast_indices', f'{dataset}_{mode}_{delta}_{num_forecasts}.npy')
 
@@ -135,10 +145,14 @@ class TPPDataset(Dataset):
                     seq_len = torch.sum(mask)
                     assert seq_len > 3 * delta
                     start_idx_range = np.arange(delta * 2, seq_len-delta, 1)
-                    start_indices = torch.from_numpy(np.random.choice(
-                        start_idx_range,
-                        size=min(len(start_idx_range), num_forecasts),
-                        replace=False)).sort().values
+
+                    if mode == 'train':
+                        start_indices = torch.from_numpy(np.array(start_idx_range))
+                    else:
+                        start_indices = torch.from_numpy(np.random.choice(
+                            start_idx_range,
+                            size=min(len(start_idx_range), num_forecasts),
+                            replace=False)).sort().values
 
                     # pad with -1 if it has less than num_forecasts
                     if len(start_indices) < num_forecasts:
@@ -153,6 +167,39 @@ class TPPDataset(Dataset):
             assert self._masks.shape[0] == forecast_idx.shape[0]
         else:
             forecast_idx = torch.tensor([])
+
+        #if (num_forecasts > 0 and mode != 'train') or (mode == self.debug):
+        #    forecast_idx_path = os.path.join(
+        #        data_type_dir, 'forecast_indices', f'{dataset}_{mode}_{delta}_{num_forecasts}.npy')
+
+        #    if os.path.exists(forecast_idx_path):
+        #        forecast_idx = torch.from_numpy(np.load(forecast_idx_path)).long()
+        #        print(f'{forecast_idx_path} exists. Loaded forecast indices.')
+        #    else:
+        #        forecast_idx = []
+        #        for i in range(len(self._masks)):
+        #            mask = self._masks[i]
+        #            seq_len = torch.sum(mask)
+        #            assert seq_len > 3 * delta
+        #            start_idx_range = np.arange(delta * 2, seq_len-delta, 1)
+        #            start_indices = torch.from_numpy(np.random.choice(
+        #                start_idx_range,
+        #                size=min(len(start_idx_range), num_forecasts),
+        #                replace=False)).sort().values
+
+        #            # pad with -1 if it has less than num_forecasts
+        #            if len(start_indices) < num_forecasts:
+        #                start_indices = torch.cat((
+        #                    start_indices, -torch.ones(num_forecasts - len(start_indices))))
+        #            forecast_idx.append(start_indices)
+
+        #        forecast_idx = torch.stack(forecast_idx, dim=0).long()
+        #        np.save(forecast_idx_path, forecast_idx.numpy())
+        #        print(f'{forecast_idx_path} does not exists. Generated and saved forecast indices.')
+
+        #    assert self._masks.shape[0] == forecast_idx.shape[0]
+        #else:
+        #    forecast_idx = torch.tensor([])
         self._forecast_idx = forecast_idx
 
         print(f'time shape: {self._times.shape}, marks shape: {self._marks.shape}, masks shape: {self._masks.shape}')

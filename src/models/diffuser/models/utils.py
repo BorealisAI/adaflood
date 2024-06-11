@@ -105,7 +105,7 @@ def get_model_fn(model, train=False):
     A model function.
   """
 
-  def model_fn(x, labels):
+  def model_fn(x, labels, cond=None):
     """Compute the output of the score-based model.
 
     Args:
@@ -118,10 +118,10 @@ def get_model_fn(model, train=False):
     """
     if not train:
       model.eval()
-      return model(x, labels)
+      return model(x, labels, cond)
     else:
       model.train()
-      return model(x, labels)
+      return model(x, labels, cond)
 
   return model_fn
 
@@ -141,7 +141,7 @@ def get_score_fn(sde, model, train=False, continuous=False):
   model_fn = get_model_fn(model, train=train)
 
   if isinstance(sde, sde_lib.VPSDE) or isinstance(sde, sde_lib.subVPSDE):
-    def score_fn(x, t):
+    def score_fn(x, t, cond):
       # Scale neural network output by standard deviation and flip sign
       if continuous or isinstance(sde, sde_lib.subVPSDE):
         # For VP-trained models, t=0 corresponds to the lowest noise level
@@ -153,7 +153,7 @@ def get_score_fn(sde, model, train=False, continuous=False):
       else:
         # For VP-trained models, t=0 corresponds to the lowest noise level
         labels = t * (sde.N - 1)
-        score = model_fn(x, labels)
+        score = model_fn(x, labels, cond)
         std = sde.sqrt_1m_alphas_cumprod.to(labels.device)[labels.long()]
 
       score = -score / std[:, None, None, None]

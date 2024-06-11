@@ -70,7 +70,12 @@ def evaluate(cfg: DictConfig) -> Tuple[dict, dict]:
     log.info(f"Instantiating diffuser <{cfg.model._target_}>")
 
     diffuser_partial: LightningModule = hydra.utils.instantiate(cfg.diffuser)
-    diffuser = diffuser_partial(ar_net=model.net)
+
+    diffuser_config = hydra.utils.instantiate(cfg.diffuser.config)
+    override_config = hydra.utils.instantiate(cfg.diffuser.override_config)
+    diffuser_config.update(override_config)
+
+    diffuser = diffuser_partial(config=diffuser_config, ar_net=model.net)
 
     # load a checkpoint
     assert cfg.ckpt_path

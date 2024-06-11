@@ -91,6 +91,16 @@ def get_dataset(config, uniform_dequantization=False, evaluation=False):
   num_epochs = None if not evaluation else 1
 
   # Create dataset builders for each dataset.
+  #if config.data.dataset == 'TPP':
+  #  dataset_builder = tfds.builder('cifar10')
+  #  train_split_name = 'train'
+  #  eval_split_name = 'test'
+
+  #  def resize_op(img):
+  #    return tf.image.convert_image_dtype(img, tf.float32)
+      #return tf.image.resize(img, [config.data.image_size, config.data.image_size], antialias=True)
+
+
   if config.data.dataset == 'CIFAR10':
     dataset_builder = tfds.builder('cifar10')
     train_split_name = 'train'
@@ -170,7 +180,7 @@ def get_dataset(config, uniform_dequantization=False, evaluation=False):
         img = tf.image.random_flip_left_right(img)
       if uniform_dequantization:
         img = (tf.random.uniform(img.shape, dtype=tf.float32) + img * 255.) / 256.
-
+      #print(f'flip: {config.data.random_flip}, dequant: {uniform_dequantization}')
       return dict(image=img, label=d.get('label', None))
 
   def create_dataset(dataset_builder, split):
