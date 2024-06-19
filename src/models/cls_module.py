@@ -24,7 +24,7 @@ class CLSLitModule(LightningModule):
         - Validation loop (validation_step)
         - Test loop (test_step)
         - Prediction Loop (predict_step)
-        - Optimizers and LR Schedulers (configure_optimizers)
+        - Optimizers and LR Schedulers (configure_optimtest)
 
     Docs:
         https://lightning.ai/docs/pytorch/latest/common/lightning_module.html
@@ -107,6 +107,7 @@ class CLSLitModule(LightningModule):
 
     def model_step(self, input_dict):
         output_dict = self.net(input_dict)
+        logits = output_dict[constants.LOGITS]
         loss_dict = self.criterion(output_dict, input_dict)
 
         output_dict.update(loss_dict)
@@ -233,11 +234,11 @@ class CLSLitModule(LightningModule):
             https://lightning.ai/docs/pytorch/latest/common/lightning_module.html#configure-optimizers
         """
         if self.tuning:
-            assert self.dataset is not None
+            #assert self.dataset is not None
             train_parameters = []
             for name, params in self.net.named_parameters():
-                if name.startswith('fc.'):# or name.startswith('layer4.2.'):# or name.startswith('layer3.'):
-                    train_parameters.append(params)
+                #if name.startswith('fc.') or name.startswith('layer4.') or name.startswith('layer3.') or name.startswith('layer2.') or name.startswith('layer1.'):
+                train_parameters.append(params)
                 #if self.dataset != 'cifar100' and name.startswith('layer3.'):
                 #    train_parameters.append(params)
 

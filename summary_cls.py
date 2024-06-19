@@ -6,10 +6,10 @@ from functools import partial
 
 
 
-def loss_df(metric, loss, task_name, lrs, weight_decays, flood_levels, model_dims, gammas, aux_num):
+def loss_df(metric, loss, task_name, lrs, weight_decays, flood_levels, model_dims, gammas, distill_weights, aux_num):
     log_dir = os.path.join(f"{os.getcwd()}", "results")
     if metric == 'acc':
-        result_df = pd.DataFrame(columns=['lr', 'wd', 'fl', 'mdim', 'gamma', 'acc', 'loss', 'test_acc', 'test_loss'])
+        result_df = pd.DataFrame(columns=['lr', 'wd', 'fl', 'mdim', 'gamma', 'dw', 'acc', 'loss', 'test_acc', 'test_loss'])
     else:
         raise NotImplementedError(f'Metric {metric} not implemented')
 
@@ -24,6 +24,7 @@ def loss_df(metric, loss, task_name, lrs, weight_decays, flood_levels, model_dim
                 if not os.path.exists(csv_path):
                     continue
 
+                print(csv_path)
                 try:
                     df = pd.read_csv(csv_path)
                     indices = np.where(np.logical_not(np.isnan(df[f'{args.eval_type}/{metric}_best'])))[0]
@@ -56,7 +57,7 @@ def loss_df(metric, loss, task_name, lrs, weight_decays, flood_levels, model_dim
                     test_acc, test_loss = np.inf, np.inf
 
                 result_df = pd.concat([result_df, pd.DataFrame([{
-                    'lr': lr, 'wd': weight_decay, 'fl': None, 'mdim': None, 'gamma': None,
+                    'lr': lr, 'wd': weight_decay, 'fl': None, 'mdim': None, 'gamma': None, 'dw': None,
                     'acc': np.round(acc, 4),
                     'loss': np.round(loss_with_acc_best, 4),
                     'test_acc': np.round(test_acc, 4),
@@ -108,7 +109,7 @@ def loss_df(metric, loss, task_name, lrs, weight_decays, flood_levels, model_dim
                         test_acc, test_loss = np.inf, np.inf
 
                     result_df = pd.concat([result_df, pd.DataFrame([{
-                        'lr': lr, 'wd': weight_decay, 'fl': flood_level, 'mdim': None, 'gamma': None,
+                        'lr': lr, 'wd': weight_decay, 'fl': flood_level, 'mdim': None, 'gamma': None, 'dw': None,
                         'acc': np.round(acc, 4),
                         'loss': np.round(loss_with_acc_best, 4),
                         'test_acc': np.round(test_acc, 4),
@@ -162,12 +163,69 @@ def loss_df(metric, loss, task_name, lrs, weight_decays, flood_levels, model_dim
                             test_acc, test_loss = np.inf, np.inf
 
                         result_df = pd.concat([result_df, pd.DataFrame([{
-                            'lr': lr, 'wd': weight_decay, 'fl': None, 'mdim': model_dim, 'gamma': gamma,
+                            'lr': lr, 'wd': weight_decay, 'fl': None, 'mdim': model_dim, 'gamma': gamma, 'dw': None,
                             'acc': np.round(acc, 4),
                             'loss': np.round(loss_with_acc_best, 4),
                             'test_acc': np.round(test_acc, 4),
                             'test_loss': np.round(test_loss, 4)
                         }])], ignore_index=True)
+
+    # knowledge distillation
+    elif loss == 'kd':
+        for lr in lrs:
+            for weight_decay in weight_decays:
+                for model_dim in model_dims:
+                    for gamma in gammas:
+                        for distill_weight in distill_weights:
+                            output_dir = os.path.join(
+                                f"{log_dir}", f"{task_name}", f"seed{args.seed}", f"lr{lr}_wd{weight_decay}_mdim{model_dim}_gamma{gamma}_dw{distill_weight}_aux{aux_num}")
+                            csv_path = os.path.join(
+                                output_dir, 'csv', 'version_0', 'metrics.csv')
+                            if not os.path.exists(csv_path):
+                                #print(csv_path)
+                                #import IPython; IPython.embed()
+                                continue
+
+                            try:
+                                df = pd.read_csv(csv_path)
+                                indices = np.where(np.logical_not(np.isnan(df[f'{args.eval_type}/{metric}_best'])))[0]
+                            except:
+                                continue
+
+                            if len(indices) <= 0:
+                                acc = np.inf
+                            elif args.eval_type == 'test':
+                                idx_best = indices[-1]
+                                df_best = df.iloc[idx_best]
+                                acc = df_best[f'{args.eval_type}/acc_best']
+                                loss_with_acc_best = df_best[f'{args.eval_type}/loss_with_acc_best']
+                            else:
+                                idx_best = indices[-1]
+                                df_best = df.iloc[idx_best]
+                                if metric == 'acc':
+                                    acc = df_best[f'{args.eval_type}/acc_best']
+                                    loss_with_acc_best = df_best[f'{args.eval_type}/loss_with_acc_best']
+                                idx_val_best = np.where(df[f'{args.eval_type}/{metric}'] == acc)[0][0]
+                                #print(f'Best val epoch for {loss} with {gamma}: {int(df.iloc[idx_val_best].epoch)}')
+
+                            try:
+                                test_indices = np.where(
+                                    np.logical_not(np.isnan(df[f'test/{metric}'])))[0]
+                                test_idx = test_indices[-1]
+                                test_df = df.iloc[test_idx]
+                                test_acc = test_df[f'test/acc']
+                                test_loss = test_df[f'test/loss']
+                            except:
+                                test_acc, test_loss = np.inf, np.inf
+
+                            result_df = pd.concat([result_df, pd.DataFrame([{
+                                'lr': lr, 'wd': weight_decay, 'fl': None, 'mdim': model_dim, 'gamma': gamma, 'dw': distill_weight,
+                                'acc': np.round(acc, 4),
+                                'loss': np.round(loss_with_acc_best, 4),
+                                'test_acc': np.round(test_acc, 4),
+                                'test_loss': np.round(test_loss, 4)
+                            }])], ignore_index=True)
+
 
     else:
         raise NotImplementedError(f"Loss {args.loss} is not implemented")
@@ -202,7 +260,7 @@ if __name__ == '__main__' :
     parser.add_argument("-m", "--model", required=True,
                         choices=["resnet18", "resnet34"])
     parser.add_argument("-l", "--loss",
-                        choices=["tpp", "flood", "iflood", "adaflood"])
+                        choices=["tpp", "flood", "iflood", "adaflood", "kd"])
     parser.add_argument("-a", "--alpha", type=float, default=0.0)
     parser.add_argument("-i", "--imb", type=float, default=1.0)
     parser.add_argument("-t", "--tag", default="test")
@@ -216,13 +274,13 @@ if __name__ == '__main__' :
     if args.loss:
         losses = [args.loss]
     else:
-        losses = ["cls", "flood", "iflood", "adaflood"]
+        losses = ["cls", "flood", "iflood", "adaflood", "kd"]
 
     metrics = ["acc"]
 
     if args.data == 'cifar10':
         if args.alpha == 0.0:
-            lrs, weight_decays = [0.1], [0.0001] #[0.0001] # [0.0]
+            lrs, weight_decays = [0.1], [0.0] #[0.0001] # [0.0]
         else:
             lrs, weight_decays = [0.1], [0.0]
         #flood_levels = [0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5,
@@ -237,7 +295,7 @@ if __name__ == '__main__' :
         #                0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 1.0]
     elif args.data == 'svhn':
         if args.alpha == 0.0:
-            lrs, weight_decays = [0.1], [0.0001] # [0.0001]
+            lrs, weight_decays = [0.1], [0.0] # [0.0001]
         else:
             lrs, weight_decays = [0.1], [0.0]
         #flood_levels = [0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5,
@@ -260,6 +318,7 @@ if __name__ == '__main__' :
                     0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 1.0]
     gammas = [0.0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.1,
               0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.90, 0.95, 1.0]
+    distill_weights = [1.0, 3.0, 5.0, 7.0, 9.0]
 
     print(f'Data: {args.data}')
     summary_dfs = []
@@ -269,7 +328,7 @@ if __name__ == '__main__' :
             task_name = f"{args.data}_{args.model}_alpha{args.alpha}_imb{args.imb}_{loss}_{args.tag}"
 
             df = loss_df(metric, loss, task_name, lrs, weight_decays,
-                         flood_levels, model_dims, gammas, args.aux_num)
+                         flood_levels, model_dims, gammas, distill_weights, args.aux_num)
             loss_dfs.append(df)
 
             print(f'Loss: {loss}, Metric: {metric}')

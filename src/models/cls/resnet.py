@@ -30,7 +30,7 @@ class ResBase(nn.Module):
                  d_model: int = 64, weights_path: str = None, pretrained=False, smaller=False):
         super().__init__()
         model_resnet = res_dict[name](d_model=d_model, pretrained=pretrained, smaller=smaller)
-        self.use_maxpool = True
+        self.use_maxpool = False
         # feature extractor
         self.smaller = smaller
         self.conv1 = model_resnet.conv1
@@ -48,6 +48,7 @@ class ResBase(nn.Module):
         self.in_features = model_resnet.fc.in_features
         # classifier
         self.num_classes = num_classes
+        self.drop = nn.Dropout(p=0.5)
         self.fc = nn.Linear(self.in_features, num_classes)
         self.fc.apply(init_weights)
 

@@ -440,34 +440,71 @@ class DistillCLSLoss(nn.Module):
         return {constants.LOSS: adjusted_loss, constants.LOSSES: losses}
 
 
+class DistillAdaFloodCLSLoss(CLSLoss):
+    def __init__(self, num_classes: int, distill_weight: float, alpha_init: float = 1.0,
+                 beta_init: float = 0.0, affine_train: str = None, gamma: float = 0.5):
+        super().__init__(num_classes)
 
-    #def forward(
-    #    self, output_dict: Union[Dict, torch.Tensor], input_dict: Dict
-    #) -> Dict[str, torch.Tensor]:
+        if affine_train is None:
+            self.alpha = torch.tensor(alpha_init)
+            self.beta = torch.tensor(beta_init)
+        elif affine_train == 'alpha':
+            self.alpha = nn.Parameter(torch.tensor(alpha_init))
+            self.beta = torch.tensor(beta_init)
+        elif affine_train == 'beta':
+            self.alpha = torch.tensor(alpha_init)
+            self.beta = nn.Parameter(torch.tensor(beta_init))
+        elif affine_train == 'both':
+            self.alpha = nn.Parameter(torch.tensor(alpha_init))
+            self.beta = nn.Parameter(torch.tensor(beta_init))
+        else:
+            raise NotImplementedError(f'affine_train: {affine_train} is not implemented')
 
-    #    losses = self.common_step(output_dict, input_dict)
-    #    if self.training:
-    #        aux1_losses = self.aux_step(output_dict, input_dict, 'aux1')
-    #        aux2_losses = self.aux_step(output_dict, input_dict, 'aux2')
+        self.gamma = gamma
+        self.distill_weight = distill_weight
 
-    #        # compute loss based on first_half bool
-    #        if len(input_dict['is_first_half']) > 0:
-    #            is_first_half = input_dict['is_first_half']
-    #            is_second_half = torch.logical_not(is_first_half)
+    def aux_step(
+        self, output_dict: Union[Dict, torch.Tensor], input_dict: Dict, aux_type: str
+    ) -> Dict[str, torch.Tensor]:
+        eval_losses = output_dict[constants.AUX_EVAL_LOSSES]
+        return eval_losses
 
-    #            trans_aux1_losses = self.alpha * aux1_losses[is_second_half] + self.beta
-    #            trans_aux2_losses = self.alpha * aux2_losses[is_first_half] + self.beta
+    def distill_step(
+        self, output_dict: Union[Dict, torch.Tensor], input_dict: Dict
+    ) -> Dict[str, torch.Tensor]:
+        teacher_logits = output_dict[constants.AUX_LOGITS]
+        teacher_probs = torch.nn.functional.softmax(teacher_logits / self.distill_weight , dim=-1)
 
-    #            aux1_adjusted_losses = (
-    #                losses[is_second_half] - trans_aux1_losses).abs() + trans_aux1_losses
-    #            aux2_adjusted_losses = (
-    #                losses[is_first_half] - trans_aux2_losses).abs() + trans_aux2_losses
-    #            adjusted_loss = torch.mean(aux1_adjusted_losses) + torch.mean(aux2_adjusted_losses)
-    #        else:
-    #            adjusted_loss = torch.mean(losses)
-    #    else:
-    #        adjusted_loss = torch.mean(losses)
+        logits = output_dict[constants.LOGITS]
+        log_probs = torch.nn.functional.log_softmax(logits / self.distill_weight, dim=-1)
 
-    #    return {constants.LOSS: adjusted_loss}
+        soft_loss = -torch.sum(teacher_probs * log_probs) / log_probs.size()[0]
 
+        return soft_loss
+
+    def forward(
+        self, output_dict: Union[Dict, torch.Tensor], input_dict: Dict
+    ) -> Dict[str, torch.Tensor]:
+
+        losses = self.common_step(output_dict, input_dict)
+        if self.training:
+            aux_eval_losses = self.aux_step(
+                output_dict, input_dict, 'aux')
+
+            trans_aux_losses = self.alpha * aux_eval_losses + self.beta
+            trans_aux_losses = -torch.log(
+                (1-self.gamma) * torch.exp(-trans_aux_losses) + self.gamma)
+
+            aux_adjusted_losses = (
+                losses - trans_aux_losses).abs() + trans_aux_losses
+            adjusted_loss = torch.mean(aux_adjusted_losses)
+
+            soft_loss = self.distill_step(output_dict, input_dict)
+            adjusted_loss = adjusted_loss + (1.0 / self.distill_weight ** 2) * soft_loss
+        else:
+            adjusted_loss = torch.mean(losses)
+
+        #if torch.isnan(adjusted_loss):
+        #    import IPython; IPython.embed()
+        return {constants.LOSS: adjusted_loss, constants.LOSSES: losses}
 

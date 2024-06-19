@@ -1,0 +1,21 @@
+_target_: src.models.cls_module.CLSLitModule
+
+defaults:
+  - _self_
+  - criterion: cls # [cls, flood_cls, iflood_cls, adaflood_cls]
+  - scheduler: multistep
+
+optimizer:
+  _target_: torch.optim.SGD # Adam
+  _partial_: true
+  lr: 0.1
+  momentum: 0.9
+  nesterov: False
+  weight_decay: 0.0001
+
+net:
+  _target_: src.models.cls.vgg.vgg16_bn
+  name: 'vgg16'
+  num_classes: ${data.datasets.num_classes}
+  d_model: 64
+

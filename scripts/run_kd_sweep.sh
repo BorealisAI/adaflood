@@ -3,7 +3,7 @@
 #SBATCH --ntasks-per-node=4
 #SBATCH --mem=64G
 #SBATCH --time=3-0:00
-#SBATCH --job-name=adaflood_sweep
+#SBATCH --job-name=kd_sweep
 #SBATCH --error=results/%x.%j.err
 #SBATCH --output=results/%x.%j.out
 
@@ -32,7 +32,7 @@ aux_lr=0.001
 aux_weight_decay=0.001
 
 affine_train=null
-aux_num=2
+aux_num=0
 
 #gammas=(0.05 0.1 0.15 0.2 0.25 0.3 0.35 0.40 0.45 0.50 0.55 0.60 0.65 0.70 0.75 0.80 0.85 0.90 0.95)
 #gammas=(0.2 0.3 0.35 0.4 0.45 0.5 0.55 0.6 0.65 0.7 0.75 0.8 0.85 0.9 0.95) # 0.50 0.60 0.70 0.80 0.90 1.0)
@@ -42,12 +42,13 @@ tpp_gammas=(0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9) # 0.50 0.60 0.70 0.80 0.90 
 #cls_gammas=(0.0 0.05 0.1 0.15 0.2 0.25 0.3 0.35 0.4 0.45 0.5 0.55 0.6 0.65 0.7 0.75 0.8 0.85 0.9 0.95) # 0.50 0.60 0.70 0.80 0.90 1.0)
 #cls_gammas=(0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9) # 0.50 0.60 0.70 0.80 0.90 1.0)
 #cls_gammas=(0.5 0.6 0.7 0.8 0.9) # 0.50 0.60 0.70 0.80 0.90 1.0)
-cls_gammas=(0.75)  #0.5 0.6 0.65 0.75 0.85) # 0.50 0.60 0.70 0.80 0.90 1.0)
+cls_gammas=(1.0 0.9 0.8 0.7 0.6 0.5 0.4 0.3 0.2 0.1) #0.5 0.6 0.65 0.75 0.85) # 0.50 0.60 0.70 0.80 0.90 1.0)
+distill_weights=(9.0 7.0 5.0 3.0 1.0)
 
 
 
 # Parsing arguments
-while getopts ":d:f:m:l:w:k:s:i:t:e:p:j:a:x:y:b:" flag; do
+while getopts ":d:f:m:l:w:k:s:i:t:e:p:j:a:x:y:b:z:" flag; do
   case "${flag}" in
     s) seed=${OPTARG};;
     t) task=${OPTARG};;
@@ -65,6 +66,7 @@ while getopts ":d:f:m:l:w:k:s:i:t:e:p:j:a:x:y:b:" flag; do
     p) max_epochs=${OPTARG};;
     j) aux_num=${OPTARG};;
     b) imb_factor=${OPTARG};;
+    z) distill_weight=${OPTARG};;
     :)                                         # If expected argument omitted:
       echo "Error: -${OPTARG} requires an argument."
       exit_abnormal;;                          # Exit abnormally.
@@ -73,64 +75,10 @@ while getopts ":d:f:m:l:w:k:s:i:t:e:p:j:a:x:y:b:" flag; do
   esac
 done
 
-if [ $task == "tpp" ]
-then
-    if [ $model == "thp_mix_aux" ]
-    then
-        experiment=adaflood_tpp
-    elif [ $model == "intensity_free_aux" ]
-    then
-        experiment=adaflood_if
-    fi
-    #if [ $dataset == "uber_drop" ] || [ $dataset == "taxi_times_jan_feb" ]
-    #then
-    #    gammas=(0.0)
-    #fi
-    #for aux_d_model in ${tpp_aux_d_models[@]}; do
-    #for flood_level in {null,-10.0,-1.0,0.0,1.0,10.0}; do
-    for gamma in ${tpp_gammas[@]}; do
-        echo "**************** Script Arguments **************"
-        echo "seed: $seed";
-        echo "task: $task";
-        echo "dataset: $dataset";
-        echo "alpha: $alpha";
-        echo "model: $model";
-        echo "lr: $lr";
-        echo "weight_decay: $weight_decay";
-        echo "aux_num: $aux_num";
-        echo "aux_d_model: $aux_d_model";
-        echo "aux_lr: $aux_lr";
-        echo "aux_weight_decay: $aux_weight_decay";
-        echo "affine_train: $affine_train";
-        echo "gamma: $gamma";
-        echo "************************************************"
-        python src/train_tpp.py seed=$seed experiment=$experiment trainer.max_epochs=$max_epochs \
-            data/datasets=$dataset data.alpha=$alpha model=$model \
-            model.optimizer.lr=$lr model.optimizer.weight_decay=$weight_decay tags=["adaflood","final"] \
-            model.net.aux_lr=$aux_lr model.net.aux_weight_decay=$aux_weight_decay model.net.aux_d_model=$aux_d_model \
-            model.criterion.affine_train=$affine_train data.aux_num=$aux_num model.criterion.gamma=$gamma
-    done
-elif [ $task == "cls" ]
-then
-    if [ $dataset == "cars" ]
-    then
-        experiment=adaflood_cls_large
-    else
-        experiment=adaflood_cls
-    fi
-    for aux_d_model in ${cls_aux_d_models[@]}; do
-        #for gamma in {0.3,0.4,0.5,0.6,0.7}; do
-        #for gamma in {0.35,0.45,0.55,0.65,0.75}; do
-        #for gamma in {0.40,0.41,0.42,0.43,0.44}; do
-        #for gamma in {0.30,0.35,0.4,0.45}; do
-        #for gamma in {0.65,0.75}; do
-        #for gamma in {0.1,0.2,0.3,0.4,0.5}; do
-        #for gamma in {0.05,0.15,0.25,0.35,0.45}; do
-        #for gamma in {0.80,0.85,0.90,0.95,0.1,0.2}; do
-        for gamma in ${cls_gammas[@]}; do
-        #for gamma in {0.05,0.15,0.25}; do
-        #for flood_level in {0.3,0.35,0.4,0.45,0.5,0.55,0.6,0.65,0.7,0.75}; do
-    #        for flood_level in ${tmp_fl[@]}; do # (0.3, 0.4, 0.5, 0.6)
+experiment=distill_cls
+for aux_d_model in ${cls_aux_d_models[@]}; do
+    for gamma in ${cls_gammas[@]}; do
+        for distill_weight in ${distill_weights[@]}; do
             echo "**************** Script Arguments **************"
             echo "seed: $seed";
             echo "task: $task";
@@ -144,19 +92,19 @@ then
             echo "aux_d_model: $aux_d_model";
             echo "aux_lr: $aux_lr";
             echo "aux_weight_decay: $aux_weight_decay";
-            echo "affine_train: $affine_train";
             echo "gamma: $gamma";
+            echo "distill_weight: $distill_weight";
             echo "************************************************"
             python src/train_cls.py seed=$seed experiment=$experiment trainer.max_epochs=$max_epochs \
                 data/datasets=$dataset data.alpha=$alpha data.imb_factor=$imb_factor model=$model \
                 model.optimizer.lr=$lr model.optimizer.weight_decay=$weight_decay \
-                model/scheduler=$scheduler tags=["adaflood","final_test"] \
+                model/scheduler=$scheduler tags=["kd","final"] \
                 model.net.aux_lr=$aux_lr model.net.aux_weight_decay=$aux_weight_decay model.net.aux_d_model=$aux_d_model \
-                model.criterion.affine_train=$affine_train model.criterion.gamma=$gamma data.aux_num=$aux_num
-        #    done
-        done
+                model.criterion.affine_train=$affine_train model.criterion.gamma=$gamma data.aux_num=$aux_num \
+                model.criterion.distill_weight=$distill_weight
+            done
     done
-fi
+done
 
 
 #for aux_d_model in {16,32,64,128}; do

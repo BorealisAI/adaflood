@@ -1,0 +1,3 @@
+dataset: 'food101'
+num_classes: 101
+

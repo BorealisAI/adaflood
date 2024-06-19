@@ -29,6 +29,7 @@ net:
   aux_weight_decay: 0.001
   aux_d_model: 64
   aux_logit_path: ${paths.log_dir}/${data.datasets.dataset}_${model.net.name}_alpha${data.alpha}_imb${data.imb_factor}_cls_aux${data.aux_num}_test/seed${seed}/lr${model.net.aux_lr}_wd${model.net.aux_weight_decay}_mdim${model.net.aux_d_model}/aux${data.aux_num}_eval_logits.pkl
+
   # TODO: revert the path
     #aux_weights_dir: ${paths.log_dir}/${data.datasets.dataset}_${model.net.name}_cls_fixed_val/seed1/lr${model.net.aux_lr}_wd${model.net.aux_weight_decay}/checkpoints
     #aux1_weights_dir: ${paths.log_dir}/${data.datasets.dataset}_${model.net.name}_cls_aux1/seed1/lr${model.net.aux_lr}_wd${model.net.aux_weight_decay}_mdim${model.net.aux_d_model}/checkpoints

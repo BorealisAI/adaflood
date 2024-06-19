@@ -30,6 +30,7 @@ pyrootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 # ------------------------------------------------------------------------------------ #
 
 from src import utils, constants
+from src.utils.utils import find_latest_version
 
 log = utils.get_pylogger(__name__)
 
@@ -48,7 +49,7 @@ def evaluate(cfg: DictConfig) -> Tuple[dict, dict]:
         Tuple[dict, dict]: Dict with metrics and dict with all instantiated objects.
     """
 
-    assert cfg.ckpt_path
+    #assert cfg.ckpt_path
 
     # set seed for random number generators in pytorch, numpy and python.random
     if cfg.get("seed"):
@@ -61,7 +62,14 @@ def evaluate(cfg: DictConfig) -> Tuple[dict, dict]:
     model: LightningModule = hydra.utils.instantiate(cfg.model)
 
     # load a checkpoint
-    ckpt = torch.load(cfg.ckpt_path)
+    try:
+        ckpt = torch.load(cfg.ckpt_path)
+    except:
+        print(f'Checkpoint: {cfg.ckpt_path} is not valid')
+        last_ckpt_path = find_latest_version(cfg.last_ckpt_path)
+        print(f'Loading the latest last checkpoint: {last_ckpt_path}')
+        ckpt = torch.load(last_ckpt_path)
+
     model.load_state_dict(ckpt['state_dict'], strict=True)
 
     log.info("Instantiating loggers...")

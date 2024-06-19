@@ -181,3 +181,76 @@ def generate_noisy_labels_subgroup(labels, num_classes, alpha):
 
     noisy_labels = np.stack(noisy_labels)
     return noisy_labels
+
+def find_latest_version(ckpt_path):
+    ckpt_dir = '/'.join(ckpt_path.split('/')[:-1])
+    ckpt_paths = glob.glob(os.path.join(ckpt_dir, '*.ckpt'))
+
+    latest_ckpt_path = None
+    latest_version = 0
+    for path in ckpt_paths:
+        file_name = path.split('/')[-1]
+        if not file_name.startswith('last'):
+            continue
+
+        version = file_name.split('-')[-1]
+        if version == 'last':
+            continue
+
+        try:
+            version = int(version.split('.')[0][1:])
+        except:
+            continue
+        if version > latest_version:
+            latest_version = version
+            latest_ckpt_path = path
+
+    if latest_ckpt_path is None:
+        latest_ckpt_path = ckpt_path
+    return latest_ckpt_path
+
+def find_aux_checkpoint(aux_logit_path):
+    aux_ckpt_dir = os.path.join(
+        '/'.join(aux_logit_path.split('/')[:-1]), 'aux-1/checkpoints')
+    aux_ckpt_paths = glob.glob(os.path.join(aux_ckpt_dir, 'epoch_*.ckpt'))
+
+    latest_ckpt = None
+    latest_version = 0
+    latest_epoch = 0
+
+    # select the latest version
+    version_nums = []
+    for ckpt_path in aux_ckpt_paths:
+        ckpt_name = ckpt_path.split('_')[-1].split('.')[0]
+        if '-' in ckpt_name:
+            epoch_num = int(ckpt_name.split('-')[0])
+            version_num = int(ckpt_name.split('-')[1][1:])
+            version_nums.append(version_num)
+
+    if version_nums:
+        latest_version = max(version_nums)
+        aux_ckpt_paths = glob.glob(
+            os.path.join(aux_ckpt_dir, f'epoch_*-v{latest_version}.ckpt'))
+    else:
+        aux_ckpt_paths = glob.glob(os.path.join(aux_ckpt_dir, 'epoch_*.ckpt'))
+
+
+    # select the latest epoch
+    for ckpt_path in aux_ckpt_paths:
+        ckpt_name = ckpt_path.split('_')[-1].split('.')[0]
+        if '-' in ckpt_name:
+            epoch_num = int(ckpt_name.split('-')[0])
+            version_num = int(ckpt_name.split('-')[1][1:])
+        else:
+            epoch_num = int(ckpt_name)
+
+        if epoch_num > latest_epoch:
+            latest_epoch = epoch_num
+            latest_ckpt_path = ckpt_path
+
+    return latest_ckpt_path
+
+
+
+
+

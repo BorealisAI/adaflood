@@ -27,9 +27,9 @@ affine_train=null
 compute_node=false
 ckpt_epoch=null
 
-# abghopquvz
+# ghoqv
 # Parsing arguments
-while getopts ":d:f:m:l:w:r:k:s:i:t:n:e:j:a:x:y:b:u:c:" flag; do
+while getopts ":d:f:m:l:w:r:k:s:i:t:n:e:j:a:x:y:b:u:z:" flag; do
   case "${flag}" in
     s) seed=${OPTARG};;
     t) task=${OPTARG};;
@@ -49,7 +49,8 @@ while getopts ":d:f:m:l:w:r:k:s:i:t:n:e:j:a:x:y:b:u:c:" flag; do
     a) alpha=${OPTARG};;
     b) imb_factor=${OPTARG};;
     u) use_weight_decay=${OPTARG};;
-    c) ckpt_epoch=${OPTARG};;
+    z) ckpt_epoch=${OPTARG};;
+    q) last_ckpt_epoch=${OPTARG};;
     :)                                         # If expected argument omitted:
       echo "Error: -${OPTARG} requires an argument."
       exit_abnormal;;                          # Exit abnormally.
@@ -129,7 +130,7 @@ then
     elif [ $dataset == "cifar10" ]
     then
         lrs=(0.1) #0.01
-        weight_decays=(0.0)
+        weight_decays=(0.0001)
         scheduler=multistep3 # multistep
         max_epochs=300
         lr=0.1
@@ -187,19 +188,19 @@ for lr in ${lrs[@]}; do
         if [ $criterion == "base" ]
         then
             $command scripts/eval_base.sh -s $seed -t $task -p $max_epochs -d $dataset -a $alpha -b $imb_factor \
-                -m $model -l $lr -w $weight_decay -e $scheduler -j $aux_num -c $ckpt_epoch
+                -m $model -l $lr -w $weight_decay -e $scheduler -j $aux_num -z $ckpt_epoch
         elif [ $criterion == "flood" ]
         then
             $command scripts/eval_flood.sh -s $seed -t $task -p $max_epochs -d $dataset -a $alpha -b $imb_factor \
-                -m $model -l $lr -w $weight_decay -e $scheduler -c $ckpt_epoch
+                -m $model -l $lr -w $weight_decay -e $scheduler -z $ckpt_epoch
         elif [ $criterion == "iflood" ]
         then
             $command scripts/eval_iflood.sh -s $seed -t $task -p $max_epochs -d $dataset -a $alpha -b $imb_factor \
-                -m $model -l $lr -w $weight_decay -e $scheduler -c $ckpt_epoch
+                -m $model -l $lr -w $weight_decay -e $scheduler -z $ckpt_epoch
         elif [ $criterion == "adaflood" ]
         then
             $command scripts/eval_adaflood.sh -s $seed -t $task -p $max_epochs -d $dataset -a $alpha -b $imb_factor \
-                -m $model -l $lr -w $weight_decay -e $scheduler -x $aux_lr -y $aux_weight_decay -i $affine_train -j $aux_num -c $ckpt_epoch
+                -m $model -l $lr -w $weight_decay -e $scheduler -x $aux_lr -y $aux_weight_decay -i $affine_train -j $aux_num -z $ckpt_epoch
         fi
     done
 done

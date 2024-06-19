@@ -29,7 +29,7 @@ max_epochs=300
 ckpt_epoch=null
 
 # Parsing arguments
-while getopts ":d:f:m:l:w:s:t:e:p:a:b:c:" flag; do
+while getopts ":d:f:m:l:w:s:t:e:p:a:b:z:" flag; do
   case "${flag}" in
     s) seed=${OPTARG};;
     t) task=${OPTARG};;
@@ -42,7 +42,7 @@ while getopts ":d:f:m:l:w:s:t:e:p:a:b:c:" flag; do
     p) max_epochs=${OPTARG};;
     a) alpha=${OPTARG};;
     b) imb_factor=${OPTARG};;
-    c) ckpt_epoch=${OPTARG};;
+    z) ckpt_epoch=${OPTARG};;
     :)                                         # If expected argument omitted:
       echo "Error: -${OPTARG} requires an argument."
       exit_abnormal;;                          # Exit abnormally.

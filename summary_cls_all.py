@@ -268,10 +268,10 @@ if __name__ == '__main__' :
     parser.add_argument("-v", "--save", type=bool, default=False)
     args = parser.parse_args()
 
-    alphas =  np.linspace(0.1, 1, 10)
+    alphas =  np.linspace(0.1, 0.9, 9) #np.linspace(0.1, 1, 10)
     result_df = pd.DataFrame(columns=['method'] + [np.around(alpha,1) for alpha in alphas])
 
-    for i, alpha in enumerate(np.linspace(0.1, 1, 10)):
+    for i, alpha in enumerate(alphas):
         args.alpha = np.around(alpha, 1)
         summary_df = main(args)
 

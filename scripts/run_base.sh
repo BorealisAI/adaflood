@@ -84,7 +84,7 @@ then
     python src/train_cls.py seed=$seed experiment=$experiment trainer.max_epochs=$max_epochs \
         data/datasets=$dataset data.alpha=$alpha data.imb_factor=$imb_factor model=$model \
         model.optimizer.lr=$lr model.optimizer.weight_decay=$weight_decay \
-        model/scheduler=$scheduler data.aux_num=$aux_num tags=["cls","final"]
+        model/scheduler=$scheduler data.aux_num=$aux_num tags=["cls","test"]
 fi
 
 

@@ -147,7 +147,7 @@ then
             echo "affine_train: $affine_train";
             echo "gamma: $gamma";
             echo "************************************************"
-            python src/train_cls.py seed=$seed experiment=$experiment trainer.max_epochs=$max_epochs \
+            python src/train_cls_ft.py seed=$seed experiment=$experiment trainer.max_epochs=$max_epochs \
                 data/datasets=$dataset data.alpha=$alpha data.imb_factor=$imb_factor model=$model \
                 model.optimizer.lr=$lr model.optimizer.weight_decay=$weight_decay \
                 model/scheduler=$scheduler tags=["adaflood","final_test"] \

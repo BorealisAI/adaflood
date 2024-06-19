@@ -52,7 +52,10 @@ class ResBaseAux(ResBase):
         self.eval_logit_dict = None
         if os.path.exists(aux_eval_logit_path):
             with open(aux_eval_logit_path, "rb") as f:
-                self.eval_logit_dict = pickle.load(f)
+                try:
+                    self.eval_logit_dict = pickle.load(f)
+                except:
+                    self.eval_logit_dict = None
 
         #with open(aux_train_logit_path, "rb") as f:
         #    self.train_logit_dict = pickle.load(f)
@@ -90,6 +93,10 @@ class ResBaseAux(ResBase):
                         np_aux_eval_logits.append(dummy_logits)
                     else:
                         np_aux_eval_logits.append(self.eval_logit_dict[idx.item()])
+                        #if np.any(np.isnan(self.eval_logit_dict[idx.item()])):
+                        #    import IPython; IPython.embed(); exit()
+
+                        #print('not dummy logits')
                 np_aux_eval_logits = np.stack(np_aux_eval_logits)
 
                 #np_aux_eval_logits = np.stack(
@@ -97,7 +104,6 @@ class ResBaseAux(ResBase):
                 aux_eval_logits = torch.from_numpy(np_aux_eval_logits).to(
                     input_dict[constants.IMAGES].device)
                 aux_output_dict.update({constants.AUX_LOGITS: aux_eval_logits})
-
 
             #np_aux_train_losses = np.stack(
             #    [self.train_loss_dict[idx.item()] for idx in orig_indices], axis=0)

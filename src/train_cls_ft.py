@@ -93,13 +93,13 @@ def train(cfg: DictConfig) -> Tuple[dict, dict]:
         log.info("Compiling model!")
         model = torch.compile(model)
 
-    ckpt_path = cfg.get("ckpt_path") # TODO: revert back to this line
+    #ckpt_path = cfg.get("ckpt_path") # TODO: revert back to this line
     # ==============================================================
-    #ckpt_path = find_aux_checkpoint(cfg.model.net['aux_logit_path'])
-    #checkpoint = torch.load(ckpt_path)
-    #model.load_state_dict(checkpoint['state_dict'])
-    #ckpt_path = None
-    #model.tuning = False
+    ckpt_path = find_aux_checkpoint(cfg.model.net['aux_logit_path'])
+    checkpoint = torch.load(ckpt_path)
+    model.load_state_dict(checkpoint['state_dict'])
+    ckpt_path = None
+    model.tuning = False
 
     #model.net.layer3[0].conv1.reset_parameters()
     #model.net.layer3[0].bn1.reset_parameters()
@@ -123,11 +123,15 @@ def train(cfg: DictConfig) -> Tuple[dict, dict]:
     #model.net.layer4[1].conv2.reset_parameters()
     #model.net.layer4[1].bn2.reset_parameters()
 
-    #model.net.fc.reset_parameters()
-    #for name, params in model.net.named_parameters():
-    #    if name.startswith('conv1') or name.startswith('bn1') or name.startswith('layer1.') or name.startswith('layer2.'): # or name.startswith('layer3.'):
-    #        params.requires_grad = False
+    model.net.fc.reset_parameters()
+    for name, params in model.net.named_parameters():
+        if name.startswith('conv1') or name.startswith('bn1') or name.startswith('layer1.') or name.startswith('layer2.') or name.startswith('layer3.'):
+            params.requires_grad = False
     # ==============================================================
+    # n=0 lr=0.1 (done)
+    # n=1 lr=0.3 (done)
+    # n=2 lr=0.1 (0.903, 0.0396) 0.15 (0.902, 0.0375) 0.3 (0.898, 0.0455)
+    # n=3 lr=0.1 (0.898, 0.0472) 0.3 (0.9, 0.0469) 0.5 (40.8977, 0.05249)
     # tuning = True fc ~ 0.9
     # tuning = False layer4 and fc with lr 0.001 ~ 0.9
     # 1: tuning = True layer4 and fc with lr 0.1 ~ 0.898

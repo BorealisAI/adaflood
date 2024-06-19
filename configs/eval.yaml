@@ -32,6 +32,13 @@ tags: ["dev", "test"]
 
 # passing checkpoint path is necessary for evaluation
 ckpt_path: ${paths.ckpt_dir}/epoch_${ckpt_epoch}.ckpt
+last_ckpt_path: ${paths.ckpt_dir}/last.ckpt
+  # last
+  # cifar10 /w - unreg: last-v6, flood:, iflood: , adaflood:
+  # cifar10 w/o - unreg: last-v2, last-v2, 
+  # cifar100 /w - unreg: 
+
+  # best
   # cifar10 w/ - unreg: epcoh_0249-v2, flood: epoch_0293.ckpt, iflood: epoch_0269.ckpt, adaflood: epoch_0298.ckpt
   # cifar10 w/o - unreg: epcoh_0242, flood: epoch_0191.ckpt, iflood: epoch_0249.ckpt, adaflood: epoch_0225.ckpt
   # cifar100 w/ - unreg: epcoh_0228, flood: epoch_0188.ckpt, iflood: epoch_0195.ckpt, adaflood: epoch_0135.ckpt

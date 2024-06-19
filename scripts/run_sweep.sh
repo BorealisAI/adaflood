@@ -140,10 +140,10 @@ then
         weight_decay=0.0001
     elif [ $dataset == "cifar10" ]
     then
-        lrs=(0.1) #0.01
-        weight_decays=(0.0)
-        scheduler=multistep3 # multistep
-        max_epochs=250 # 300 # 300 # 300
+        lrs=(0.5) # 0.1
+        weight_decays=(0.0001)
+        scheduler=multistep3
+        max_epochs=300
         lr=0.1
         weight_decays=0.0
     elif [ $dataset == "cifar100" ]
@@ -234,6 +234,10 @@ else
             elif [ $criterion == "adaflood" ]
             then
                 $command scripts/run_adaflood_sweep.sh -s $seed -t $task -p $max_epochs -d $dataset -a $alpha -b $imb_factor \
+                    -m $model -l $lr -w $weight_decay -e $scheduler -x $aux_lr -y $aux_weight_decay -i $affine_train -j $aux_num
+            elif [ $criterion == "adaflood_ft" ]
+            then
+                $command scripts/run_adaflood_ft_sweep.sh -s $seed -t $task -p $max_epochs -d $dataset -a $alpha -b $imb_factor \
                     -m $model -l $lr -w $weight_decay -e $scheduler -x $aux_lr -y $aux_weight_decay -i $affine_train -j $aux_num
             elif [ $criterion == "kd" ]
             then
