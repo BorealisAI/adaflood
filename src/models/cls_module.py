@@ -1,3 +1,10 @@
+# Copyright (c) 2024-present, Royal Bank of Canada.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
+
 from typing import Any
 
 import torch
@@ -89,10 +96,6 @@ class CLSLitModule(LightningModule):
         self.idx3_train_loss = MeanMetric()
         self.idx4_train_loss = MeanMetric()
 
-        #self.indices_training_loss = {
-        #    idx: MeanMetric() for idx in self.indices_to_check}
-
-
     def on_train_start(self):
         # by default lightning executes validation step sanity checks before training starts,
         # so it's worth to make sure validation metrics don't store results from these checks
@@ -102,8 +105,6 @@ class CLSLitModule(LightningModule):
         self.val_loss_with_acc_best.reset()
         self.l1_gradient.reset()
         self.tmp_batch_size = 0
-        #for idx in self.indices_training_loss:
-        #    self.indices_training_loss[idx].reset()
 
     def model_step(self, input_dict):
         output_dict = self.net(input_dict)
@@ -135,24 +136,7 @@ class CLSLitModule(LightningModule):
 
         indices = input_dict[constants.INDICES]
         losses = output_dict[constants.LOSSES]
-        #for i, idx in enumerate(indices):
-        #    if idx == 4775:
-        #        self.idx0_train_loss(losses[i].cpu())
-        #        self.log(f"train_idx0/loss", self.idx0_train_loss, on_step=False, on_epoch=True, prog_bar=True)
-        #    elif idx == 31336:
-        #        self.idx1_train_loss(losses[i].cpu())
-        #        self.log(f"train_idx1/loss", self.idx1_train_loss, on_step=False, on_epoch=True, prog_bar=True)
-        #    elif idx == 36921:
-        #        self.idx2_train_loss(losses[i].cpu())
-        #        self.log(f"train_idx2/loss", self.idx2_train_loss, on_step=False, on_epoch=True, prog_bar=True)
-        #    elif idx == 41564:
-        #        self.idx3_train_loss(losses[i].cpu())
-        #        self.log(f"train_idx3/loss", self.idx3_train_loss, on_step=False, on_epoch=True, prog_bar=True)
-        #    elif idx == 49741:
-        #        self.idx4_train_loss(losses[i].cpu())
-        #        self.log(f"train_idx4/loss", self.idx4_train_loss, on_step=False, on_epoch=True, prog_bar=True)
-
-        # return loss or backpropagation will fail
+        
         return loss
 
     def on_train_epoch_end(self):
@@ -237,13 +221,10 @@ class CLSLitModule(LightningModule):
             #assert self.dataset is not None
             train_parameters = []
             for name, params in self.net.named_parameters():
-                #if name.startswith('fc.') or name.startswith('layer4.') or name.startswith('layer3.') or name.startswith('layer2.') or name.startswith('layer1.'):
-                train_parameters.append(params)
-                #if self.dataset != 'cifar100' and name.startswith('layer3.'):
-                #    train_parameters.append(params)
+                if name.startswith('fc.'):
+                    train_parameters.append(params)
 
             optimizer = self.hparams.optimizer(params=train_parameters)
-            #optimizer.param_groups[0]['lr'] *= 3
         else:
             params = [
                 {'params': self.net.parameters()},
@@ -256,9 +237,6 @@ class CLSLitModule(LightningModule):
                     "optimizer": optimizer,
                     "lr_scheduler": {
                         "scheduler": scheduler,
-                        #"monitor": "val/loss",
-                        #"interval": "epoch",
-                        #"frequency": 1,
                     },
                 }
 
@@ -273,9 +251,7 @@ class CLSLitModule(LightningModule):
         """
         train_parameters = []
         for name, params in self.net.named_parameters():
-            if name.startswith('fc.') or name.startswith('layer4.'): # or  name.startswith('layer3.'):
-                train_parameters.append(params)
-            if dataset != 'cifar100' and name.startswith('layer3.'):
+            if name.startswith('fc.'):
                 train_parameters.append(params)
 
         optimizer = self.hparams.optimizer(params=train_parameters)

@@ -1,4 +1,10 @@
-""" This module defines some network classes for selective capacity models. """
+# Copyright (c) 2024-present, Royal Bank of Canada.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
+
 import os
 import pickle
 import logging
@@ -41,7 +47,6 @@ class IntensityFreePredictorWithAux(IntensityFreePredictor):
             weights_path=weights_path, perm_invar=perm_invar, compute_acc=compute_acc)
 
         aux_loss_path = aux_logit_path.replace('_logits', '_losses')
-        #aux_pred_path = aux_logit_path.replace('_logits', '_preds')
         aux_mu_path = aux_logit_path.replace('_logits', '_mus')
         aux_sigma_path = aux_logit_path.replace('_logits', '_sigmas')
         aux_log_weight_path = aux_logit_path.replace('_logits', '_log_weights')
@@ -56,9 +61,6 @@ class IntensityFreePredictorWithAux(IntensityFreePredictor):
 
         with open(aux_loss_path, "rb") as f:
             self.loss_dict = pickle.load(f)
-
-        #with open(aux_pred_path, "rb") as f:
-        #    self.pred_dict = pickle.load(f)
 
         with open(aux_mu_path, "rb") as f:
             self.mu_dict = pickle.load(f)
@@ -88,11 +90,6 @@ class IntensityFreePredictorWithAux(IntensityFreePredictor):
             aux_losses = torch.from_numpy(np_aux_losses).to(times.device)
             aux_output_dict.update({constants.AUX_LOSSES: aux_losses})
 
-            #np_aux_preds = np.stack(
-            #    [self.pred_dict[idx.item()] for idx in indices], axis=0)
-            #aux_preds = torch.from_numpy(np_aux_preds).to(times.device)
-            #aux_output_dict.update({constants.AUX_PREDS: aux_preds})
-
             np_aux_mus = np.stack(
                 [self.mu_dict[idx.item()] for idx in indices], axis=0)
             aux_mus = torch.from_numpy(np_aux_mus).to(times.device)
@@ -114,48 +111,10 @@ class IntensityFreePredictorWithAux(IntensityFreePredictor):
 
             aux_output_dict.update({'aux_min_loss': self.aux_min_loss})
 
-            #np_aux_losses = np.stack(
-            #    [self.loss_dict[idx.item()] for idx in indices], axis=0)
-            #aux_losses = torch.from_numpy(np_aux_losses).to(times.device)
-            #aux_output_dict = {constants.AUX_LOSSES: aux_losses}
-            #import IPython; IPython.embed()
-
         output_dict = super().forward(
             times=times, marks=marks, masks=masks, missing_masks=missing_masks)
         output_dict.update(aux_output_dict)
         return output_dict
-
-
-
-
-
-    #    aux1_weights_path = load_checkpoint_path(aux1_weights_dir)
-    #    aux2_weights_path = load_checkpoint_path(aux2_weights_dir)
-
-    #    self.aux_model1 = IntensityFreePredictor(
-    #        name=name, hidden_dim=aux_d_model, num_components=num_components,
-    #        num_classes=num_classes, flow=flow, activation=activation,
-    #        weights_path=aux1_weights_path, perm_invar=perm_invar, compute_acc=compute_acc)
-
-    #    self.aux_model2 = IntensityFreePredictor(
-    #        name=name, hidden_dim=aux_d_model, num_components=num_components,
-    #        num_classes=num_classes, flow=flow, activation=activation,
-    #        weights_path=aux2_weights_path, perm_invar=perm_invar, compute_acc=compute_acc)
-
-    #def forward(self, times, marks, masks, missing_masks=[], is_first_half=[]):
-    #    with torch.inference_mode():
-    #        aux1_output_dict = self.aux_model1.forward(times, marks, masks, missing_masks, is_first_half)
-    #        aux2_output_dict = self.aux_model2.forward(times, marks, masks, missing_masks, is_first_half)
-    #        aux1_output_dict = {
-    #            'aux1_' + key: val for key, val in aux1_output_dict.items()}
-    #        aux2_output_dict = {
-    #            'aux2_' + key: val for key, val in aux2_output_dict.items()}
-
-    #        aux1_output_dict.update(aux2_output_dict)
-
-    #    output_dict = super().forward(times, marks, masks, missing_masks, is_first_half)
-    #    output_dict.update(aux1_output_dict)
-    #    return output_dict
 
 
 class TransformerMixWithAux(TransformerMix):
@@ -223,11 +182,6 @@ class TransformerMixWithAux(TransformerMix):
             aux_losses = torch.from_numpy(np_aux_losses).to(times.device)
             aux_output_dict.update({constants.AUX_LOSSES: aux_losses})
 
-            #np_aux_preds = np.stack(
-            #    [self.pred_dict[idx.item()] for idx in indices], axis=0)
-            #aux_preds = torch.from_numpy(np_aux_preds).to(times.device)
-            #aux_output_dict.update({constants.AUX_PREDS: aux_preds})
-
             np_aux_mus = np.stack(
                 [self.mu_dict[idx.item()] for idx in indices], axis=0)
             aux_mus = torch.from_numpy(np_aux_mus).to(times.device)
@@ -249,43 +203,8 @@ class TransformerMixWithAux(TransformerMix):
 
             aux_output_dict.update({'aux_min_loss': self.aux_min_loss})
 
-            #np_aux_losses = np.stack(
-            #    [self.loss_dict[idx.item()] for idx in indices], axis=0)
-            #aux_losses = torch.from_numpy(np_aux_losses).to(times.device)
-            #aux_output_dict = {constants.AUX_LOSSES: aux_losses}
-            #import IPython; IPython.embed()
-
         output_dict = super().forward(
             times=times, marks=marks, masks=masks, missing_masks=missing_masks)
         output_dict.update(aux_output_dict)
         return output_dict
-
-
-
-        #with torch.inference_mode():
-        #    aux_output_dict = self.aux_model.forward(times, marks, masks, missing_masks, is_first_half)
-        #    aux_output_dict = {
-        #        'aux_' + key: val for key, val in aux_output_dict.items()}
-
-        #output_dict = super().forward(times, marks, masks, missing_masks, is_first_half)
-        #output_dict.update(aux_output_dict)
-        #return output_dict
-
-
-
-    #def forward(self, times, marks, masks, missing_masks=[], is_first_half=[]):
-    #    with torch.inference_mode():
-    #        aux1_output_dict = self.aux_model1.forward(times, marks, masks, missing_masks, is_first_half)
-    #        aux2_output_dict = self.aux_model2.forward(times, marks, masks, missing_masks, is_first_half)
-    #        aux1_output_dict = {
-    #            'aux1_' + key: val for key, val in aux1_output_dict.items()}
-    #        aux2_output_dict = {
-    #            'aux2_' + key: val for key, val in aux2_output_dict.items()}
-
-    #        aux1_output_dict.update(aux2_output_dict)
-
-    #    output_dict = super().forward(times, marks, masks, missing_masks, is_first_half)
-    #    output_dict.update(aux1_output_dict)
-    #    return output_dict
-
 

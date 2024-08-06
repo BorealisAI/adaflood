@@ -1,3 +1,9 @@
+# Copyright (c) 2024-present, Royal Bank of Canada.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
 # Dataset
 INPUT_DIM = "input_dim"
 NUM_CLS = "num_classes"
@@ -12,7 +18,6 @@ MASKS = "masks"
 LOG_MEAN = "log_mean"
 LOG_STD = "log_std"
 INDICES = "indices"
-#IS_FIRST_HALF = 'is_first_half' # for adaflood
 
 # Outputs
 HISTORIES = "histories"
@@ -78,7 +83,6 @@ PAD = 0
 # Inputs
 IMAGES = "images"
 LABELS = "labels"
-#IS_FIRST_HALF = 'is_first_half' # for adaflood
 
 # Outputs
 LOGITS = "logits"

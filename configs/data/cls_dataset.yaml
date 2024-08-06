@@ -1,8 +1,14 @@
+# Copyright (c) 2024-present, Royal Bank of Canada.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
 _target_: src.data.cls_dataset.CLSDataModule
 
 defaults:
   - _self_
-  - datasets: cifar10
+  - datasets: cifar100
 
 data_dir: ${paths.data_dir}
 batch_size: 128

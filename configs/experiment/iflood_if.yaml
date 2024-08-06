@@ -1,3 +1,9 @@
+# Copyright (c) 2024-present, Royal Bank of Canada.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
 # @package _global_
 
 # to execute this experiment run:
@@ -16,11 +22,11 @@ defaults:
 
 tags: ["iflood", "test"]
 
-seed: 10 # 1
+seed: 1
 
 trainer:
   min_epochs: 300
-  max_epochs: 2000 #6000
+  max_epochs: 2000
 
 data:
   batch_size: 24

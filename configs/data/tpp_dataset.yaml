@@ -1,3 +1,9 @@
+# Copyright (c) 2024-present, Royal Bank of Canada.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
 _target_: src.data.tpp_dataset.TPPDataModule
 
 defaults:
@@ -17,7 +23,3 @@ use_mark: True
 # AdaFlood
 aux_idx: -1
 aux_num: 2
-
-  #train_first_half: False # train aux1 on first half
-  #train_second_half: False # train aux2 on second half
-

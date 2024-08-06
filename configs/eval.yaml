@@ -1,3 +1,9 @@
+# Copyright (c) 2024-present, Royal Bank of Canada.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
 # @package _global_
 
 defaults:
@@ -33,16 +39,6 @@ tags: ["dev", "test"]
 # passing checkpoint path is necessary for evaluation
 ckpt_path: ${paths.ckpt_dir}/epoch_${ckpt_epoch}.ckpt
 last_ckpt_path: ${paths.ckpt_dir}/last.ckpt
-  # last
-  # cifar10 /w - unreg: last-v6, flood:, iflood: , adaflood:
-  # cifar10 w/o - unreg: last-v2, last-v2, 
-  # cifar100 /w - unreg: 
-
-  # best
-  # cifar10 w/ - unreg: epcoh_0249-v2, flood: epoch_0293.ckpt, iflood: epoch_0269.ckpt, adaflood: epoch_0298.ckpt
-  # cifar10 w/o - unreg: epcoh_0242, flood: epoch_0191.ckpt, iflood: epoch_0249.ckpt, adaflood: epoch_0225.ckpt
-  # cifar100 w/ - unreg: epcoh_0228, flood: epoch_0188.ckpt, iflood: epoch_0195.ckpt, adaflood: epoch_0135.ckpt
-  # svhn w/ - unreg: epcoh_0214, flood: epoch_0295.ckpt, iflood: epoch_0230.ckpt, adaflood: epoch_0296.ckpt
 ckpt_epoch: null
 
 # seed for random number generators in pytorch, numpy and python.random

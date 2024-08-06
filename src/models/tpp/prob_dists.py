@@ -1,3 +1,15 @@
+# Copyright (c) 2024-present, Royal Bank of Canada.
+# Copyright (c) 2021 Oleksandr Shchur
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+#####################################################################################
+# Code is based on the Intensity-Free (https://openreview.net/forum?id=HygOjhEYDH) implementation
+# from https://github.com/shchur/ifl-tpp by Oleksandr Shchur
+#################################################################################### 
+
+
 import torch
 import stribor as st
 import torch.nn as nn

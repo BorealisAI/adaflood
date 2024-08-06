@@ -1,6 +1,10 @@
-#!/bin/bash
+# Copyright (c) 2024-present, Royal Bank of Canada.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
 
-source ~/pl/bin/activate
+#!/bin/bash
 
 # Default values for arguments
 seed=1
@@ -61,8 +65,7 @@ tmp_weight_decay=$weight_decay
 # determine a node - compute or interactive
 if [ $compute_node == "true" ]
 then
-    #command="sbatch --exclude=compute1080ti08,compute1080ti06,compute1080ti10,compute1080ti03,compute1080ti04"
-    command="sbatch --exclude=compute1080ti[01-10]"
+    command="sbatch"
 else
     command="bash"
 fi
@@ -70,13 +73,7 @@ fi
 # set lrs and weight decays
 if [ $task == "tpp" ]
 then
-    if [ $dataset == "reddit" ]
-    then
-        lrs=(0.001)
-        weight_decays=(0.0001)
-        lr=0.001
-        weight_decay=0.0001
-    elif [ $dataset == "uber_drop" ]
+    if [ $dataset == "uber_drop" ]
     then
         if [ $model == "thp_mix" ] || [ $model == "thp_mix_aux" ]
         then
@@ -91,30 +88,6 @@ then
             lr=0.0001
             weight_decay=0.01
         fi
-    elif [ $dataset == "wiki" ]
-    then
-        lrs=(0.0001)
-        weight_decays=(0.001)
-        lr=0.0001
-        weight_decay=0.001
-    elif [ $dataset == "so_fold1" ]
-    then
-        lrs=(0.0001)
-        weight_decays=(0.001)
-        lr=0.0001
-        weight_decay=0.001
-    elif [ $dataset == "taxi_times_jan_feb" ]
-    then
-        lrs=(0.001)
-        weight_decays=(0.001)
-        lr=0.001
-        weight_decay=0.001
-    elif [ $dataset == "mooc" ]
-    then
-        lrs=(0.001)
-        weight_decays=(0.00001)
-        lr=0.001
-        weight_decay=0.00001
     else
         lrs=(0.01 0.001 0.0001)
         weight_decays=(0.01 0.001 0.0001 0.00001)
@@ -122,73 +95,15 @@ then
     max_epochs=2000
 elif [ $task == "cls" ]
 then
-    if [ $dataset == "imagenet100" ]
+    if [ $dataset == "cifar100" ]
     then
         lrs=(0.1)
-        weight_decays=(0.0001)
+        weight_decays=(0.0)
         scheduler=multistep2
-        max_epochs=200 # 200
-        lr=0.1
-        weight_decay=0.0001
-    elif [ $dataset == "imagenet" ]
-    then
-        lrs=(0.1)
-        weight_decays=(0.0001)
-        scheduler=multistep6
-        max_epochs=400
-        lr=0.1
-        weight_decay=0.0001
-    elif [ $dataset == "cifar10" ]
-    then
-        lrs=(0.5) # 0.1
-        weight_decays=(0.0001)
-        scheduler=multistep3
-        max_epochs=300
-        lr=0.1
-        weight_decays=0.0
-    elif [ $dataset == "cifar100" ]
-    then
-        lrs=(0.1) #0.01
-        weight_decays=(0.0)
-        scheduler=multistep4 # multistep
-        max_epochs=300 # 300
-        lr=0.1
-        weight_decay=0.0
-    elif [ $dataset == "svhn" ]
-    then
-        lrs=(0.1) #0.01
-        weight_decays=(0.0)
-        scheduler=multistep3 # multistep
         max_epochs=300
         lr=0.1
         weight_decay=0.0
-    elif [ $dataset == "cars" ]
-    then
-        lrs=(0.1) #0.01
-        weight_decays=(0.0005)
-        scheduler=multistep5 # multistep
-        max_epochs=300
-        lr=0.1
-        weight_decay=0.0005 # 0.0005
-    elif [ $dataset == "animal" ]
-    then
-        lrs=(0.1) #0.01
-        weight_decays=(0.0001)
-        scheduler=multistep3 # multistep
-        max_epochs=100
-        lr=0.1
-        weight_decay=0.0001 # 0.0005
-    elif [ $dataset == "food101" ]
-    then
-        lrs=(0.1) #0.01
-        weight_decays=(0.0001)
-        scheduler=multistep3 # multistep
-        max_epochs=90
-        lr=0.1
-        weight_decay=0.0001 # 0.0005
     else
-        #lrs=(0.1 0.01 0.001)
-        #weight_decays=(0.01 0.001 0.0001 0.00001)
         lrs=(0.01)
         weight_decays=(0.01)
         scheduler=multistep
@@ -235,53 +150,8 @@ else
             then
                 $command scripts/run_adaflood_sweep.sh -s $seed -t $task -p $max_epochs -d $dataset -a $alpha -b $imb_factor \
                     -m $model -l $lr -w $weight_decay -e $scheduler -x $aux_lr -y $aux_weight_decay -i $affine_train -j $aux_num
-            elif [ $criterion == "adaflood_ft" ]
-            then
-                $command scripts/run_adaflood_ft_sweep.sh -s $seed -t $task -p $max_epochs -d $dataset -a $alpha -b $imb_factor \
-                    -m $model -l $lr -w $weight_decay -e $scheduler -x $aux_lr -y $aux_weight_decay -i $affine_train -j $aux_num
-            elif [ $criterion == "kd" ]
-            then
-                $command scripts/run_kd_sweep.sh -s $seed -t $task -p $max_epochs -d $dataset -a $alpha -b $imb_factor \
-                    -m $model -l $lr -w $weight_decay -e $scheduler -x $aux_lr -y $aux_weight_decay -i $affine_train -j $aux_num
             fi
         done
     done
 fi
-
-
-
-#for weight_decay in {0.01,0.001,0.0001,0.00001}; do
-#    echo "************************************************"
-#    echo "running $criterion"
-#    if [ $criterion == "flood" ]
-#    then
-#        sbatch --exclude=compute1080ti08,compute1080ti06 scripts/run_flood_sweep.sh -s $seed -d $dataset -m $model -l $lr -w $weight_decay
-#    elif [ $criterion == "iflood" ]
-#    then
-#        sbatch --exclude=compute1080ti08,compute1080ti06 scripts/run_iflood_sweep.sh -s $seed -d $dataset -m $model -l $lr -w $weight_decay
-#    elif [ $criterion == "tpp" ]
-#    then
-#        sbatch --exclude=compute1080ti08,compute1080ti06 scripts/run_tpp.sh -s $seed -d $dataset -m $model -l $lr -w $weight_decay
-#    elif [ $criterion == "adaflood" ]
-#    then
-#        sbatch --exclude=compute1080ti08,compute1080ti06 scripts/run_adaflood_sweep.sh -s $seed -d $dataset -l $lr -w $weight_decay -a $aux_lr -b $aux_weight_decay
-#    fi
-#done
-#
-
-#echo "************************************************"
-#echo "running $criterion"
-#if [ $criterion == "flood" ]
-#then
-#   sbatch --exclude=compute1080ti08,compute1080ti06 scripts/run_flood_sweep.sh -s $seed -d $dataset -m $model -l $lr -w $weight_decay
-#elif [ $criterion == "iflood" ]
-#then
-#   sbatch --exclude=compute1080ti08,compute1080ti06 scripts/run_iflood_sweep.sh -s $seed -d $dataset -m $model -l $lr -w $weight_decay
-#elif [ $criterion == "tpp" ]
-#then
-#   sbatch --exclude=compute1080ti08,compute1080ti06 scripts/run_tpp.sh -s $seed -d $dataset -m $model -l $lr -w $weight_decay
-#elif [ $criterion == "adaflood" ]
-#then
-#   sbatch --exclude=compute1080ti08,compute1080ti06 scripts/run_adaflood_sweep.sh -s $seed -d $dataset -l $lr -w $weight_decay -a $aux_lr -b $aux_weight_decay
-#fi
 

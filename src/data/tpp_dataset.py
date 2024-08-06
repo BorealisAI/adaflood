@@ -1,3 +1,9 @@
+# Copyright (c) 2024-present, Royal Bank of Canada.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
 import os
 import numpy as np
 import torch
@@ -79,13 +85,7 @@ class TPPDataModule(LightningModule):
 
 
 class TPPDataset(Dataset):
-    synthetic_data = ['sin']
-    real_data = ['so_fold1', 'mooc', 'reddit', 'wiki',
-                 'uber_drop', 'taxi_times_jan_feb']
-
-    data_fixed_indices = {
-        'retweet': [20000, 2000], 'mimic_fold1': [527, 58], 'so_fold1': [4777, 530]
-    }
+    real_data = ['uber_drop']
 
     def __init__(self, data_dir, dataset, num_classes, mode, **kwargs):
         '''
@@ -96,9 +96,7 @@ class TPPDataset(Dataset):
         super(TPPDataset).__init__()
         self.mode = mode
 
-        if dataset in self.synthetic_data:
-            data_path = os.path.join(data_dir, 'synthetic', dataset + '.npz')
-        elif dataset in self.real_data:
+        if dataset in self.real_data:
             data_path = os.path.join(data_dir, 'real', dataset + '.npz')
         else:
             logger.error(f'{dataset} is not valid for dataset argument'); exit()
@@ -112,33 +110,15 @@ class TPPDataset(Dataset):
             marks = np.ones_like(times)
         self._num_classes = num_classes
 
-        if dataset not in self.data_fixed_indices:
-            (train_size, val_size) = (
-                kwargs.get('train_size', 0.6), kwargs.get('val_size', 0.2))
-        else:
-            train_size, val_size = self.data_fixed_indices[dataset]
-
+        (train_size, val_size) = (
+            kwargs.get('train_size', 0.6), kwargs.get('val_size', 0.2))
+        
         train_rate = kwargs.get('train_rate', 1.0)
         eval_rate = kwargs.get('eval_rate', 1.0)
         num_data = len(times)
         (start_idx, end_idx) = self._get_split_indices(
             num_data, mode=mode, train_size=train_size, val_size=val_size,
             train_rate=train_rate, eval_rate=eval_rate)
-
-        #if mode == 'train':
-        #    self.first_half_end_idx = int((end_idx - start_idx) / 2.0)
-
-        #    train_first_half = kwargs.get('train_first_half', False)
-        #    train_second_half = kwargs.get('train_second_half', False)
-
-        #    if train_first_half and train_second_half:
-        #        raise Exception(f'Both train_first_half and train_second_half are True. Only one of them can be True')
-        #    elif train_first_half:
-        #        end_idx = self.first_half_end_idx
-        #    elif train_second_half:
-        #        start_idx = self.first_half_end_idx
-
-        #    self.orig_start_idx = start_idx
 
         self._times = torch.tensor(
             times[start_idx:end_idx], dtype=torch.float32).unsqueeze(-1)
@@ -184,21 +164,12 @@ class TPPDataset(Dataset):
     def __getitem__(self, idx):
         time, mark, mask = self._times[idx], self._marks[idx], self._masks[idx]
 
-        #is_first_half = []
-        #if self.mode == 'train':
-        #    orig_idx = self.orig_start_idx + idx
-        #    if orig_idx < self.first_half_end_idx:
-        #        is_first_half = True
-        #    else:
-        #        is_first_half = False
-
         missing_mask = []
         input_dict = {
             constants.TIMES: time,
             constants.MARKS: mark,
             constants.MASKS: mask,
             constants.MISSING_MASKS: missing_mask,
-            #constants.IS_FIRST_HALF: is_first_half
         }
         return input_dict
 

@@ -1,6 +1,11 @@
+# Copyright (c) 2024-present, Royal Bank of Canada.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
 import torch
 import torch.nn as nn
-#from torchvision import models
 
 from src import constants
 from src.models.cls import resnet_source
@@ -21,8 +26,6 @@ res_dict = {
     "resnet18": resnet_source.resnet18,
     "resnet34": resnet_source.resnet34,
     "resnet50": resnet_source.resnet50,
-    #"resnet101": resnet_source.resnet101,
-    #"resnet152": resnet_source.resnet152,
 }
 
 class ResBase(nn.Module):

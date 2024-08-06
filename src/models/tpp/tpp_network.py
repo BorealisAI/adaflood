@@ -1,4 +1,10 @@
-""" This module defines some network classes for selective capacity models. """
+# Copyright (c) 2024-present, Royal Bank of Canada.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
+
 import os
 import logging
 import copy
@@ -122,17 +128,6 @@ class IntensityFreePredictor(LightningModule):
                  mark_log_prob, mask in zip(class_log_probs, masks_without_last.squeeze(-1)[:,:-1])])
             class_predictions = torch.argmax(class_logits, dim=-1)
 
-        #output_dict = {
-        #    constants.HISTORIES: histories,
-        #    constants.EVENT_LL: event_ll,
-        #    constants.SURV_LL: surv_ll,
-        #    constants.KL: None,
-        #    constants.TIME_PREDS: time_predictions,
-        #    constants.CLS_LL: class_log_probs,
-        #    constants.CLS_LOGITS: class_logits,
-        #    constants.CLS_PREDS: class_predictions,
-        #    constants.ATTENTIONS: None,
-        #}
         output_dict = {
             constants.HISTORIES: histories,
             constants.EVENT_LL: event_ll,
@@ -362,14 +357,6 @@ class TransformerMix(LightningModule):
             class_dist = Categorical(logits=class_logits)
             adjusted_marks = torch.where(marks-1 >= 0, marks-1, torch.zeros_like(marks)) # original dataset uses 1-index
             class_log_probs = class_dist.log_prob(adjusted_marks[:,1:])  # (B, Seq-1)
-
-            #probs = torch.softmax(class_logits, dim=-1)
-            #flattened_probs, flattened_marks = (
-            #    probs.reshape(-1, self.num_classes), adjusted_marks[:,1:].reshape(-1))
-            #true_class_probs = flattened_probs[torch.arange(flattened_marks.shape[0]), flattened_marks]
-            #true_class_probs = true_class_probs.reshape(batch_size, -1)
-            #true_class_log_probs = torch.log(true_class_probs)
-
 
             # if it is a latent variable model, class predictions are mode of prediction samples
             if self.vi_method is not None:

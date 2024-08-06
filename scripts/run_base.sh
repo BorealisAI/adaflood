@@ -1,19 +1,15 @@
-#!/bin/bash
-#SBATCH --gres=gpu:4
-#SBATCH --ntasks=1
-#SBATCH --mem=160G
-#SBATCH --cpus-per-task=32
-#SBATCH --time=3-0:00
-#SBATCH --job-name=base_sweep
-#SBATCH --error=results/%x.%j.err
-#SBATCH --output=results/%x.%j.out
+# Copyright (c) 2024-present, Royal Bank of Canada.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
 
-source ~/pl/bin/activate
+#!/bin/bash
 
 # Default values for arguments
 seed=1
 task=tpp
-dataset=mooc
+dataset=uber_drop
 alpha=0.0
 imb_factor=1.0
 
@@ -75,12 +71,7 @@ then
         model.optimizer.lr=$lr model.optimizer.weight_decay=$weight_decay data.aux_num=$aux_num tags=["tpp","final"]
 elif [ $task == "cls" ]
 then
-    if [ $dataset == "cars" ]
-    then
-        experiment=cls_large
-    else
-        experiment=cls
-    fi
+    experiment=cls
     python src/train_cls.py seed=$seed experiment=$experiment trainer.max_epochs=$max_epochs \
         data/datasets=$dataset data.alpha=$alpha data.imb_factor=$imb_factor model=$model \
         model.optimizer.lr=$lr model.optimizer.weight_decay=$weight_decay \

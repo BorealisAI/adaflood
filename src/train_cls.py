@@ -1,3 +1,10 @@
+# Copyright (c) 2024-present, Royal Bank of Canada.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
+
 from typing import List, Optional, Tuple
 
 import time
@@ -13,7 +20,6 @@ import torch
 from lightning import Callback, LightningDataModule, LightningModule, Trainer
 from lightning.pytorch.loggers import Logger
 from omegaconf import DictConfig
-
 
 
 pyrootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
@@ -93,72 +99,13 @@ def train(cfg: DictConfig) -> Tuple[dict, dict]:
         log.info("Compiling model!")
         model = torch.compile(model)
 
-    ckpt_path = cfg.get("ckpt_path") # TODO: revert back to this line
-    # ==============================================================
-    #ckpt_path = find_aux_checkpoint(cfg.model.net['aux_logit_path'])
-    #checkpoint = torch.load(ckpt_path)
-    #model.load_state_dict(checkpoint['state_dict'])
-    #ckpt_path = None
-    #model.tuning = False
-
-    #model.net.layer3[0].conv1.reset_parameters()
-    #model.net.layer3[0].bn1.reset_parameters()
-    #model.net.layer3[0].conv2.reset_parameters()
-    #model.net.layer3[0].bn2.reset_parameters()
-    #model.net.layer3[0].downsample[0].reset_parameters()
-    #model.net.layer3[0].downsample[1].reset_parameters()
-    #model.net.layer3[1].conv1.reset_parameters()
-    #model.net.layer3[1].bn1.reset_parameters()
-    #model.net.layer3[1].conv2.reset_parameters()
-    #model.net.layer3[1].bn2.reset_parameters()
-
-    #model.net.layer4[0].conv1.reset_parameters()
-    #model.net.layer4[0].bn1.reset_parameters()
-    #model.net.layer4[0].conv2.reset_parameters()
-    #model.net.layer4[0].bn2.reset_parameters()
-    #model.net.layer4[0].downsample[0].reset_parameters()
-    #model.net.layer4[0].downsample[1].reset_parameters()
-    #model.net.layer4[1].conv1.reset_parameters()
-    #model.net.layer4[1].bn1.reset_parameters()
-    #model.net.layer4[1].conv2.reset_parameters()
-    #model.net.layer4[1].bn2.reset_parameters()
-
-    #model.net.fc.reset_parameters()
-    #for name, params in model.net.named_parameters():
-    #    if name.startswith('conv1') or name.startswith('bn1') or name.startswith('layer1.') or name.startswith('layer2.'): # or name.startswith('layer3.'):
-    #        params.requires_grad = False
-    # ==============================================================
-    # tuning = True fc ~ 0.9
-    # tuning = False layer4 and fc with lr 0.001 ~ 0.9
-    # 1: tuning = True layer4 and fc with lr 0.1 ~ 0.898
-    # 1: tuning = False early, layer1 - freeze, layer2, layer3, layer4 and fc (rand init fc) with lr 0.1 ~ 0.9088
-    # re 2: tuning = False early, layer1 - freeze, layer2, layer3, layer4 and fc (rand init fc) with lr 0.1 ~ 0.9081
-    # 2: tuning = False early, layer1 - freeze, layer2, layer3, layer4 and fc (rand init fc) with lr 0.01 ~ 0.904
-    # 2: tuning = False early, layer1 - freeze, layer2, layer3, layer4 and fc (rand init fc) with lr 0.5 ~ 0.905
-    # 2: tuning = False early, layer1 - freeze, layer2, layer3, layer4 and fc (rand init fc) with lr 0.4 ~ 0.91
-    # 2: tuning = False early, layer1 - freeze, layer2, layer3, layer4 and fc (rand init fc) with lr 0.3 ~ 0.9111
-    # 1: tuning = False early, layer1 - freeze, layer2, layer3, layer4 and fc (rand init fc) with lr 0.2 ~ 0.908
-    # 4: tuning = False early, layer1, layer2 - freeze, layer3, layer4 and fc (rand init fc) with lr 0.05 ~ 0.898
-    # 2: tuning = False early, layer1, layer2 - freeze, layer3, layer4 and fc (rand init fc) with lr 0.08 ~ 0.899
-    # 2: tuning = False early, layer1, layer2 - freeze, layer3, layer4 and fc (rand init fc) with lr 0.1 ~ 0.903
-    # 3: tuning = False early, layer1, layer2 - freeze, layer3, layer4 and fc (rand init fc) with lr 0.2 ~ 0.898
-    # 4: tuning = False early, layer1, layer2 - freeze, layer3, layer4 and fc (rand init fc) with lr 0.3 ~ 0.8984
-    # 3: tuning = False early, layer1, layer2 - freeze, layer3, layer4 and fc (rand init fc) with lr 0.5 ~ 0.8978
-    # 1: tuning = False early, layer1 - freeze, layer2, layer3, layer4 and fc (rand init fc, layer4) with lr 0.1 ~ 0.9028
-    # 1: tuning = False early, layer1, layer2, layer3 - freeze, layer4 and fc (rand init fc) with lr 0.1 ~ 0.899
-    # tuning = False layer4 and fc with lr 0.1 ~ 0.912
-    # 2: tuning = True layer3,layer4 and fc with lr 0.1 ~ 0.884
-    # 2: tuning = False fc with lr 0.1 ~ 0.912
-    # 2: tuning = True layer2, layer3, layer4 and fc (init) with lr 0.1 ~ 0.87
-    # 2: tuning = True lyaer1, layer2, layer3, layer4 and fc (init) with lr 0.1 ~ 0.87
-    # 2: tuning = True conv1, bn1, lyaer1, layer2, layer3, layer4 and fc (init) with lr 0.1 ~ epoch 150 0.87
+    ckpt_path = cfg.get("ckpt_path")  and fc (init) with lr 0.1 ~ epoch 150 0.87
 
     if cfg.get("train") and not ckpt_path:
         log.info("Starting training!")
         trainer.fit(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
 
     train_metrics = trainer.callback_metrics
-    #torch.distributed.destroy_process_group()
 
     # for aux, save prediction results
     # (load dataset with exclusion indices, make predictions on them and save them)
@@ -175,18 +122,9 @@ def train(cfg: DictConfig) -> Tuple[dict, dict]:
             log.warning("Best ckpt not found! Using current weights for testing...")
             ckpt_path = None
 
-        #if trainer.is_global_zero:
-        #    test_trainer = Trainer(devices=1)
-        #    test_trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
-        #    test_metrics = test_trainer.callback_metrics
-        #    metric_dict = {**train_metrics, **test_metrics}
-
         trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
-        #elif aux_num != -2 or aux_idx < 0:
-        #    return {}, {}
         log.info(f"Best ckpt path: {ckpt_path}")
 
-    #torch.distributed.barrier()
     # merge train and test metrics
 
     if aux_num == 0 and not isinstance(model.net, ResBaseAux):
@@ -314,7 +252,6 @@ def train(cfg: DictConfig) -> Tuple[dict, dict]:
         batch_size = int(num_train_dataset / 10.0)
         shuffle_indices = np.arange(num_train_dataset)
         np.random.shuffle(shuffle_indices)
-        #criterion = model.criterion
         val_dataloader = datamodule.val_dataloader()
 
         def _train_indices(indices, num_dataset):
@@ -354,40 +291,8 @@ def train(cfg: DictConfig) -> Tuple[dict, dict]:
             model.load_state_dict(best_ckpt)
             del best_ckpt
 
-            # === reset params ===
-            #if dataset != 'cifar100':
-            #    model.net.layer3[0].conv1.reset_parameters()
-            #    model.net.layer3[0].bn1.reset_parameters()
-            #    model.net.layer3[0].conv2.reset_parameters()
-            #    model.net.layer3[0].bn2.reset_parameters()
-            #    model.net.layer3[0].downsample[0].reset_parameters()
-            #    model.net.layer3[0].downsample[1].reset_parameters()
-            #    model.net.layer3[1].conv1.reset_parameters()
-            #    model.net.layer3[1].bn1.reset_parameters()
-            #    model.net.layer3[1].conv2.reset_parameters()
-            #    model.net.layer3[1].bn2.reset_parameters()
-
-            #model.net.layer4[0].conv1.reset_parameters()
-            #model.net.layer4[0].bn1.reset_parameters()
-            #model.net.layer4[0].conv2.reset_parameters()
-            #model.net.layer4[0].bn2.reset_parameters()
-            #model.net.layer4[0].downsample[0].reset_parameters()
-            #model.net.layer4[0].downsample[1].reset_parameters()
-            #model.net.layer4[1].conv1.reset_parameters()
-            #model.net.layer4[1].bn1.reset_parameters()
-            #model.net.layer4[1].conv2.reset_parameters()
-            #model.net.layer4[1].bn2.reset_parameters()
-
-            #try:
-            #    model.net.layer4[2].conv1.reset_parameters()
-            #    model.net.layer4[2].bn1.reset_parameters()
-            #    model.net.layer4[2].conv2.reset_parameters()
-            #    model.net.layer4[2].bn2.reset_parameters()
-            #except:
-            #    print('Model.net.layer4 does not have index 2')
-
+            # reset params 
             model.net.fc.reset_parameters()
-            # ====================
 
             model.train()
             tmp_trainer.fit(model=model, train_dataloaders=tmp_train_dataloader, val_dataloaders=val_dataloader)
@@ -395,7 +300,6 @@ def train(cfg: DictConfig) -> Tuple[dict, dict]:
 
             model.to('cpu')
             tmp_best_ckpt = torch.load(tmp_trainer.checkpoint_callback.best_model_path)['state_dict']
-            #tmp_best_ckpt = torch.load(trainer_checkpoint_callback_best_model_path)['state_dict']
             for key, v in tmp_best_ckpt.items():
                 tmp_best_ckpt[key] = v.cpu()
 
@@ -409,7 +313,6 @@ def train(cfg: DictConfig) -> Tuple[dict, dict]:
             tmp_eval_dataloader = datamodule.indexed_dataloader(eval_indices)
             for input_dict in tmp_eval_dataloader:
                 output_dict = model.model_step(utils.to_device(input_dict))
-                #output_dict = model.model_step(input_dict)
                 losses = output_dict[constants.LOSSES]
                 logits = output_dict[constants.LOGITS]
 
@@ -628,55 +531,6 @@ def train(cfg: DictConfig) -> Tuple[dict, dict]:
 
         total_end_time = time.time()
         print(f'It took {total_end_time - total_start_time}')
-
-        #aux_loss_path = os.path.join(aux_loss_dir, f"aux{aux_num}_losses.pkl")
-        #aux_logit_path = os.path.join(aux_loss_dir, f"aux{aux_num}_logits.pkl")
-
-        #total_losses = {}
-        #total_logits = {}
-        #total_corrects = []
-        #for i, input_dict in enumerate(aux_infer_dataloader):
-        #    with torch.no_grad():
-        #        output_dict = model.model_step(utils.to_device(input_dict))
-        #        losses = output_dict[constants.LOSSES]
-        #        indices = input_dict[constants.INDICES]
-        #        logit_dict = {
-        #            idx.item(): logit.detach().cpu().numpy() for idx, logit in zip(
-        #                indices, output_dict[constants.LOGITS])}
-        #        loss_dict = {
-        #            idx.item(): loss.detach().cpu().numpy() for idx, loss in zip(
-        #                indices, losses)}
-        #        total_logits.update(logit_dict)
-        #        total_losses.update(loss_dict)
-
-        #        labels = input_dict[constants.LABELS]
-        #        logits = output_dict[constants.LOGITS]
-
-        #        corrects = torch.eq(torch.argmax(logits, dim=1), labels)
-        #        total_corrects.append(corrects)
-
-        #total_corrects = torch.cat(total_corrects)
-        #print(f'Aux ACC: {torch.mean(total_corrects.float())}')
-
-        #if os.path.exists(aux_logit_path):
-        #    with open(aux_logit_path, "rb") as f:
-        #        prev_logits = pickle.load(f)
-        #    total_logits.update(prev_logits)
-
-        #with open(aux_logit_path, "wb") as f:
-        #    pickle.dump(total_logits, f, pickle.HIGHEST_PROTOCOL)
-        #log.info(
-        #    f"Inference aux {aux_idx+1}/{aux_num} is saved to {aux_logit_path}: element num = {len(total_logits.keys())}")
-
-        #if os.path.exists(aux_loss_path):
-        #    with open(aux_loss_path, "rb") as f:
-        #        prev_losses = pickle.load(f)
-        #    total_losses.update(prev_losses)
-
-        #with open(aux_loss_path, "wb") as f:
-        #    pickle.dump(total_losses, f, pickle.HIGHEST_PROTOCOL)
-        #log.info(
-        #    f"Inference aux {aux_idx+1}/{aux_num} is saved to {aux_loss_path}: element num = {len(total_losses.keys())}")
 
     return metric_dict, object_dict
 

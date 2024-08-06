@@ -1,3 +1,10 @@
+# Copyright (c) 2024-present, Royal Bank of Canada.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
+
 from typing import Any
 
 import torch
@@ -163,9 +170,6 @@ class TPPLitModule(LightningModule):
             self.log("val/nll_with_rmse_best", self.val_nll_with_rmse_best.compute(), sync_dist=True, prog_bar=True)
             self.log("val/acc_with_rmse_best", self.val_acc_with_rmse_best.compute(), sync_dist=True, prog_bar=True)
 
-
-
-
     def test_step(self, input_dict, batch_idx):
         output_dict = self.model_step(input_dict)
 
@@ -224,9 +228,6 @@ class TPPLitModule(LightningModule):
             params + [{'params': self.criterion.parameters()}]
 
         optimizer = self.hparams.optimizer(params)
-        #optimizer = self.hparams.optimizer([
-        #    {'params': wd_parameters, 'weight_decay': weight_decay},
-        #    {'params': no_wd_parameters, 'weight_decay': 0.0}])
 
         if self.hparams.scheduler is not None:
             scheduler = self.hparams.scheduler(optimizer=optimizer)

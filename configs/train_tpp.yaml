@@ -1,3 +1,9 @@
+# Copyright (c) 2024-present, Royal Bank of Canada.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
 # @package _global_
 
 # specify here default configuration
@@ -5,7 +11,7 @@
 defaults:
   - _self_
   - data: tpp_dataset
-  - model: thp_mix intensity_free thp_mix_aux intensity_free_aux
+  - model: thp_mix
   - callbacks: tpp.yaml
   - logger: csv # done - set logger here or use command line (e.g. `python train.py logger=tensorboard`)
   - trainer: default.yaml # done

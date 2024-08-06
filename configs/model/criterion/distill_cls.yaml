@@ -1,4 +1,0 @@
-_target_: src.models.components.criterion.DistillCLSLoss
-num_classes: ${data.datasets.num_classes}
-distill_weight: 1.0
-
