@@ -12,7 +12,7 @@ defaults:
   - scheduler: multistep
 
 optimizer:
-  _target_: torch.optim.SGD # Adam
+  _target_: torch.optim.SGD
   _partial_: true
   lr: 0.1
   momentum: 0.9
