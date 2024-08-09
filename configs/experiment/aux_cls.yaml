@@ -36,7 +36,7 @@ data:
 
 hydra:
   run:
-    dir: ${paths.log_dir}/${task_name}/seed${seed}/lr${model.optimizer.lr}_wd${model.optimizer.weight_decay}_mdim${model.net.d_model}/aux${data.aux_idx}  # /runs/${now:%Y-%m-%d}_${now:%H-%M-%S}
+    dir: ${paths.log_dir}/${task_name}/seed${seed}/lr${model.optimizer.lr}_wd${model.optimizer.weight_decay}_mdim${model.net.d_model}/aux${data.aux_idx} 
 
 paths:
   ckpt_dir: ${paths.log_dir}/${task_name}/seed${seed}/lr${model.optimizer.lr}_wd${model.optimizer.weight_decay}_mdim${model.net.d_model}/aux${data.aux_idx}

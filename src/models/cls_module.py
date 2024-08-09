@@ -5,7 +5,6 @@
 # LICENSE file in the root directory of this source tree.
 
 
-from typing import Any
 
 import torch
 from lightning import LightningModule
@@ -13,11 +12,8 @@ from torchmetrics import MinMetric, MaxMetric, MeanMetric
 from torchmetrics.classification.accuracy import Accuracy
 from torchmetrics.classification import MulticlassCalibrationError
 from lightning.pytorch.utilities import grad_norm
-from pytorch_lightning.utilities import rank_zero_only
-
 
 from src import constants
-from src.models.components.criterion import AdaFloodTPPLoss, AdaFloodCLSLoss
 from src.utils.metrics import MeanMetricWithCount
 
 

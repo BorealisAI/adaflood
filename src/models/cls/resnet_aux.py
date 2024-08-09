@@ -13,7 +13,6 @@ from torchvision import models
 
 from src import constants
 from src.models.cls.resnet import ResBase
-from src.utils.utils import load_checkpoint_path
 
 def init_weights(m):
     classname = m.__class__.__name__

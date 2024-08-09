@@ -5,12 +5,9 @@
 # LICENSE file in the root directory of this source tree.
 
 
-from typing import Any
-
 import torch
 from lightning import LightningModule
-from torchmetrics import MinMetric, MaxMetric, MeanMetric
-from torchmetrics.classification.accuracy import Accuracy
+from torchmetrics import MinMetric
 
 from src import constants
 from src.utils.metrics import MeanMetricWithCount, MaskedRMSE, MaskedAccuracy

@@ -113,7 +113,6 @@ def train(cfg: DictConfig) -> Tuple[dict, dict]:
     metric_dict = {}
     if cfg.get("test"):
         log.info("Starting testing!")
-        #ckpt_path = trainer.checkpoint_callback.best_model_path
         if not ckpt_path:
             ckpt_path = trainer.checkpoint_callback.best_model_path
 
@@ -125,7 +124,6 @@ def train(cfg: DictConfig) -> Tuple[dict, dict]:
         log.info(f"Best ckpt path: {ckpt_path}")
 
     # merge train and test metrics
-
     if aux_num == 0 and not isinstance(model.net, ResBaseAux):
         model.to('cuda')
         model.eval()

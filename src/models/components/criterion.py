@@ -8,7 +8,7 @@ import torch
 import numpy as np
 import torch.nn as nn
 from torch.distributions import Categorical
-from typing import List, Dict, Optional, Union
+from typing import Dict, Union
 
 from src import constants
 

@@ -4,24 +4,20 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import os
 import copy
-import random
 import numpy as np
-from functools import partial
 import torch
 from lightning import LightningDataModule
-from torch.utils.data import ConcatDataset, DataLoader, Dataset, random_split, Subset
+from torch.utils.data import DataLoader, Dataset, Subset
 from torchvision import datasets
 from torchvision.transforms import transforms
 from torch.utils.data.sampler import SubsetRandomSampler
 
 from src import constants
-from src.utils.utils import collate_fn, generate_noisy_labels, generate_noisy_labels_subgroup
-
-
+from src.utils.utils import collate_fn, generate_noisy_labels
 
 
 class CLSDataModule(LightningDataModule):

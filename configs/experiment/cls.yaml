@@ -34,7 +34,7 @@ data:
 
 hydra:
   run:
-    dir: ${paths.log_dir}/${task_name}/seed${seed}/lr${model.optimizer.lr}_wd${model.optimizer.weight_decay}  # /runs/${now:%Y-%m-%d}_${now:%H-%M-%S}
+    dir: ${paths.log_dir}/${task_name}/seed${seed}/lr${model.optimizer.lr}_wd${model.optimizer.weight_decay} 
 
 paths:
   ckpt_dir: ${paths.log_dir}/${task_name}/seed${seed}/lr${model.optimizer.lr}_wd${model.optimizer.weight_decay}/checkpoints
