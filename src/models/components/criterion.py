@@ -5,9 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import torch
-import numpy as np
 import torch.nn as nn
-from torch.distributions import Categorical
 from typing import Dict, Union
 
 from src import constants

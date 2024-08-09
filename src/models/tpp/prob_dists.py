@@ -17,8 +17,6 @@ import torch.nn.functional as F
 from torch.distributions import Normal as TorchNormal
 from torch.distributions import LogNormal as TorchLogNormal
 
-from src import constants
-
 
 def clamp_preserve_gradients(x, min, max):
     """Clamp the tensor while preserving gradients in the clamped region."""

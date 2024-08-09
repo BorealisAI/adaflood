@@ -9,8 +9,6 @@ import logging
 import torch.nn as nn
 
 from src.models.tpp import activations
-from src.models.tpp.thp.models import (
-    TransformerEncoder, TransformerRNN, TransformerDecoder)
 logger = logging.getLogger(__name__)
 
 

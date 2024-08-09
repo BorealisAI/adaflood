@@ -5,25 +5,20 @@
 # LICENSE file in the root directory of this source tree.
 
 
-import os
 import logging
-import copy
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import numpy as np
 from torch.distributions import Categorical
 from lightning import LightningModule
 
 
 from src import constants
 from src.models.tpp import util
-from src.models.tpp.prob_dists import NormalMixture, LogNormalMixture
+from src.models.tpp.prob_dists import LogNormalMixture
 from src.models.tpp.flow import ContinuousGRULayer, ContinuousLSTMLayer
 from src.models.tpp.thp.models import (
     TransformerEncoder, TransformerAttnEncoder, NPVIEncoder, NPMLEncoder,
-    TransformerRNN, TransformerDecoder)
-from src.models.tpp.thp import util as thp_util
+    TransformerDecoder)
 
 logger = logging.getLogger(__name__)
 
