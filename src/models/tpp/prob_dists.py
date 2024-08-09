@@ -74,11 +74,6 @@ class NormalMixture(nn.Module):
         masks_without_last[torch.arange(batch_size), last_event_idx] = 0
         event_ll = (log_probs * masks_without_last).sum((1, 2)) - log_times.sum((1,2)) # (B,)
 
-        #if constants.LOG_MEAN in shared_data and constants.LOG_STD in shared_data:
-        #    log_mean = shared_data[constants.LOG_MEAN]
-        #    log_std = shared_data[constants.LOG_STD]
-        #else:
-        #    log_mean, log_std = 0.0, 1.0
         log_mean, log_std = 0.0, 1.0
 
         # compute predictions

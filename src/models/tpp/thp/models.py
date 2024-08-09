@@ -6,10 +6,8 @@
 
 
 import math
-import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from src import constants
 from src.models.tpp.thp.layers import EncoderLayer, CrossAttnLayer
@@ -152,13 +150,6 @@ class TransformerAttnEncoder(nn.Module):
         self.key_proj = nn.Linear(d_model, d_model, bias=False)
         nn.init.xavier_uniform_(self.query_proj.weight)
         nn.init.xavier_uniform_(self.key_proj.weight)
-
-        #self.attention = ScaledDotProductAttention(
-        #    temperature=d_k ** 0.5, attn_dropout=dropout)
-
-        #self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
-        #self.dropout = nn.Dropout(dropout)
-
 
     def temporal_enc(self, time, non_pad_mask):
         """

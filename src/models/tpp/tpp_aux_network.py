@@ -125,7 +125,6 @@ class TransformerMixWithAux(TransformerMix):
             num_latent=num_latent, vi_method=vi_method, num_z_samples=num_z_samples, compute_acc=compute_acc)
 
         aux_loss_path = aux_logit_path.replace('_logits', '_losses')
-        #aux_pred_path = aux_logit_path.replace('_logits', '_preds')
         aux_mu_path = aux_logit_path.replace('_logits', '_mus')
         aux_sigma_path = aux_logit_path.replace('_logits', '_sigmas')
         aux_log_weight_path = aux_logit_path.replace('_logits', '_log_weights')
@@ -140,9 +139,6 @@ class TransformerMixWithAux(TransformerMix):
 
         with open(aux_loss_path, "rb") as f:
             self.loss_dict = pickle.load(f)
-
-        #with open(aux_pred_path, "rb") as f:
-        #    self.pred_dict = pickle.load(f)
 
         with open(aux_mu_path, "rb") as f:
             self.mu_dict = pickle.load(f)

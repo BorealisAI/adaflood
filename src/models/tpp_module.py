@@ -155,7 +155,6 @@ class TPPLitModule(LightningModule):
             self.log("val/rmse_with_nll_best", self.val_rmse_with_nll_best.compute(), sync_dist=True, prog_bar=True)
             self.log("val/acc_with_nll_best", self.val_acc_with_nll_best.compute(), sync_dist=True, prog_bar=True)
 
-        #if val_rmse < prev_val_rmse_best:
         if val_rmse == val_rmse_best:
             self.val_nll_with_rmse_best.reset()
             self.val_nll_with_rmse_best(val_nll)

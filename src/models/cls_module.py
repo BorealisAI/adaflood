@@ -5,7 +5,6 @@
 # LICENSE file in the root directory of this source tree.
 
 
-
 import torch
 from lightning import LightningModule
 from torchmetrics import MinMetric, MaxMetric, MeanMetric
@@ -15,7 +14,6 @@ from lightning.pytorch.utilities import grad_norm
 
 from src import constants
 from src.utils.metrics import MeanMetricWithCount
-
 
 
 class CLSLitModule(LightningModule):
@@ -84,13 +82,6 @@ class CLSLitModule(LightningModule):
 
         self.dataset = None
         self.tuning = False
-
-        self.indices_to_check = [26291, 31336, 36921, 41564, 49741]
-        self.idx0_train_loss = MeanMetric()
-        self.idx1_train_loss = MeanMetric()
-        self.idx2_train_loss = MeanMetric()
-        self.idx3_train_loss = MeanMetric()
-        self.idx4_train_loss = MeanMetric()
 
     def on_train_start(self):
         # by default lightning executes validation step sanity checks before training starts,
@@ -214,7 +205,6 @@ class CLSLitModule(LightningModule):
             https://lightning.ai/docs/pytorch/latest/common/lightning_module.html#configure-optimizers
         """
         if self.tuning:
-            #assert self.dataset is not None
             train_parameters = []
             for name, params in self.net.named_parameters():
                 if name.startswith('fc.'):

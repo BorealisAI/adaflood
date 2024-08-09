@@ -184,7 +184,6 @@ class FloodCLSLoss(CLSLoss):
         losses = self.common_step(output_dict, input_dict)
         if self.training:
             adjusted_loss = (torch.mean(losses) - self.flood_level).abs() + self.flood_level
-            #import IPython; IPython.embed()
         else:
             adjusted_loss = torch.mean(losses)
         return {constants.LOSS: adjusted_loss, constants.LOSSES: losses}
@@ -241,7 +240,6 @@ class AdaFloodCLSLoss(CLSLoss):
 
         losses = self.common_step(output_dict, input_dict)
         if self.training:
-            #probs = torch.softmax(output_dict[constants.AUX_LOGITS], dim=1)
             aux_eval_losses = self.aux_step(
                 output_dict, input_dict, 'aux')
             
