@@ -42,7 +42,6 @@ pyrootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
 from src import utils, constants
 from src.models.cls.resnet_aux import ResBaseAux
-from src.utils.utils import find_aux_checkpoint
 
 log = utils.get_pylogger(__name__)
 
@@ -99,7 +98,7 @@ def train(cfg: DictConfig) -> Tuple[dict, dict]:
         log.info("Compiling model!")
         model = torch.compile(model)
 
-    ckpt_path = cfg.get("ckpt_path")  and fc (init) with lr 0.1 ~ epoch 150 0.87
+    ckpt_path = cfg.get("ckpt_path")
 
     if cfg.get("train") and not ckpt_path:
         log.info("Starting training!")
