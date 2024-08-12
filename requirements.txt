@@ -125,7 +125,7 @@ src==0.0.1
 stack-data==0.6.2
 starlette==0.22.0
 starsessions==1.3.0
-stevedore==5.1.0
+stevedore==5.2.0
 stribor==0.1.0
 sympy==1.12
 tomli==2.0.1
