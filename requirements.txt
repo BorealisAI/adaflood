@@ -7,7 +7,7 @@ arrow==1.2.3
 asttokens==2.2.1
 async-timeout==4.0.2
 attrs==23.1.0
-autopage==0.5.1
+autopage==0.5.2
 backcall==0.2.0
 beautifulsoup4==4.12.2
 blessed==1.20.0
