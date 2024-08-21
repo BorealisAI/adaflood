@@ -1,0 +1,31 @@
+# Copyright (c) 2024-present, Royal Bank of Canada.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
+_target_: src.models.cls_module.CLSLitModule
+
+defaults:
+  - _self_
+  - criterion: adaflood_cls
+  - scheduler: multistep
+
+optimizer:
+  _target_: torch.optim.SGD
+  _partial_: true
+  lr: 0.1
+  momentum: 0.9
+  nesterov: False
+  weight_decay: 0.0001
+
+net:
+  _target_: src.models.cls.resnet_aux.ResBaseAux
+  name: 'resnet18'
+  num_classes: ${data.datasets.num_classes}
+  d_model: 64
+
+  aux_lr: 0.001
+  aux_weight_decay: 0.001
+  aux_d_model: 64
+  aux_logit_path: ${paths.log_dir}/${data.datasets.dataset}_${model.net.name}_alpha${data.alpha}_imb${data.imb_factor}_cls_aux${data.aux_num}/seed${seed}/lr${model.net.aux_lr}_wd${model.net.aux_weight_decay}_mdim${model.net.aux_d_model}/aux${data.aux_num}_eval_logits.pkl

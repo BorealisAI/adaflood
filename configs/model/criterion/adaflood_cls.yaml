@@ -1,0 +1,15 @@
+# Copyright (c) 2024-present, Royal Bank of Canada.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
+_target_: src.models.components.criterion.AdaFloodCLSLoss
+num_classes: ${data.datasets.num_classes}
+
+alpha_init: 1.0
+beta_init: 0.0
+affine_train: False
+
+gamma: 0.5
+

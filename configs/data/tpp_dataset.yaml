@@ -1,0 +1,25 @@
+# Copyright (c) 2024-present, Royal Bank of Canada.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
+_target_: src.data.tpp_dataset.TPPDataModule
+
+defaults:
+  - _self_
+  - datasets: uber_drop
+
+data_dir: ${paths.data_dir} # /shared-data/TPP
+batch_size: 16
+num_workers: 4
+pin_memory: False
+
+train_rate: 1.0
+eval_rate: 1.0
+alpha: 0.0 # dummy variable (for cls only)
+use_mark: True
+
+# AdaFlood
+aux_idx: -1
+aux_num: 2

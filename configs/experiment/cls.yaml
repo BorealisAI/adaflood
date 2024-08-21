@@ -1,0 +1,41 @@
+# @package _global_
+
+# Copyright (c) 2024-present, Royal Bank of Canada.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+defaults:
+  - override /data: cls_dataset.yaml
+  - override /model: resnet18.yaml
+  - override /callbacks: cls.yaml
+  - override /trainer: default.yaml
+  - override /model/criterion: cls.yaml
+  - override /hydra: default.yaml
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+tags: ["cls", "test"]
+
+seed: 1
+
+trainer:
+  min_epochs: 25
+  max_epochs: 200
+
+data:
+  batch_size: 128
+
+hydra:
+  run:
+    dir: ${paths.log_dir}/${task_name}/seed${seed}/lr${model.optimizer.lr}_wd${model.optimizer.weight_decay} 
+
+paths:
+  ckpt_dir: ${paths.log_dir}/${task_name}/seed${seed}/lr${model.optimizer.lr}_wd${model.optimizer.weight_decay}/checkpoints
+

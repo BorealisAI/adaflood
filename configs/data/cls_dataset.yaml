@@ -1,0 +1,25 @@
+# Copyright (c) 2024-present, Royal Bank of Canada.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
+_target_: src.data.cls_dataset.CLSDataModule
+
+defaults:
+  - _self_
+  - datasets: cifar100
+
+data_dir: ${paths.data_dir}
+batch_size: 128
+num_workers: 8
+pin_memory: False
+
+train_rate: 1.0
+alpha: 0.0 # rate of noisy labels
+imb_factor: 1.0 # as it goes to 0.0, it will be more imbalanced
+
+# AdaFlood
+aux_idx: -1 # -1 for no aux split others aux split
+aux_num: 5 # total number of aux models
+
